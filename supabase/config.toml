@@ -1,0 +1,52 @@
+# Public browser-called functions use their own validation.
+[functions.create-order]
+verify_jwt = false
+
+[functions.verify-payment]
+verify_jwt = false
+
+[functions.upload-source]
+verify_jwt = false
+
+[functions.generate-book]
+verify_jwt = false
+
+[functions.download-book]
+verify_jwt = false
+
+[functions.health]
+verify_jwt = false
+
+# refund-order is protected by x-admin-token inside the function.
+[functions.refund-order]
+verify_jwt = false
+
+[functions.publish-site]
+verify_jwt = false
+
+[functions.renew-site]
+verify_jwt = false
+
+[functions.customer-orders]
+verify_jwt = false
+
+[functions.complete-order]
+verify_jwt = false
+
+[functions.upload-site-assets]
+verify_jwt = false
+
+[functions.razorpay-webhook]
+verify_jwt = false
+
+[functions.asset-urls]
+verify_jwt = false
+
+[functions.request-refund]
+verify_jwt = false
+
+[functions.process-delivery]
+verify_jwt = false
+
+[functions.admin-api]
+verify_jwt = false
