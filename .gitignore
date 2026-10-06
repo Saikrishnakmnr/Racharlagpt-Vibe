@@ -1,0 +1,4 @@
+config.local.js
+supabase/functions/.env
+.env
+.DS_Store

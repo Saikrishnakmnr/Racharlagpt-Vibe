@@ -1,0 +1,11 @@
+# Release notes
+- Replaces the placeholder login flow with Supabase Auth.
+- Requires authentication for purchases while preserving public browsing.
+- Adds customer-linked orders and delivery states.
+- Adds Razorpay webhook reconciliation.
+- Adds Resend receipt/ready notifications.
+- Updates Gemini to `gemini-3.8-flash` default and `x-goog-api-key`.
+- Moves book source upload before payment so paid generation has durable source paths.
+- Adds Vibe logo and up to three showcase images.
+- Adds customer refund request flow while keeping actual refund admin-protected.
+- Preserves existing template categories, prices and Vibe plans.
