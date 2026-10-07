@@ -1,0 +1,49 @@
+RacharlaGPT Vibe Production Repair V4 — 2026-10-07
+
+Purpose
+-------
+This patch improves the Image Studio to a marketplace-style ready-template catalog inspired by the reference screenshots supplied by the owner. It adds many categories, search, sorting, premium/ready badges, template sharing, large visual cards, side-by-side personalization preview, and a mandatory preview-before-payment step for Photo Story.
+
+It also hardens the existing Book Preview fallback so an undefined preview object cannot throw the old "reading 'title'" error, and makes customer-orders compatible with the original production schema while the repair migration is being applied.
+
+Files
+-----
+app.js
+index.html
+styles.css
+PRODUCTION_REPAIR_2026-10-06.sql
+supabase/functions/admin-api/index.ts
+supabase/functions/customer-orders/index.ts
+supabase/functions/publish-site/index.ts
+
+IMPORTANT DEPLOYMENT ORDER
+--------------------------
+1. Keep all existing deployed functions. Do NOT delete the existing 16 functions.
+2. Apply the corrected PRODUCTION_REPAIR_2026-10-06.sql once on the existing new Supabase project. It preserves refund rows. If duplicate active refund rows exist, it keeps the preferred active record and changes redundant active duplicates to rejected/history rather than deleting them.
+3. Replace only admin-api, customer-orders and publish-site with the files in this patch.
+4. Replace frontend app.js, index.html and styles.css.
+5. Do NOT replace config.js.
+6. Do NOT replace create-order, verify-payment, razorpay-webhook, retry-order, process-delivery, generate-book or the other payment/delivery functions with this patch. They are intentionally not included.
+7. Do not create a new Razorpay webhook. Keep the existing webhook URL and events.
+8. Do not make another payment just to test the UI.
+
+Image Studio changes
+--------------------
+Categories include Wedding, Couple, Temple Wedding, India Temples, World Temples, Birthday, Family, Travel, Festival, Business, Anniversary, Invitation, Food, Salon, Jewellery, Education, Real Estate, Thumbnail, Poster, Kids, Pre-Wedding and Festival Offer.
+
+Customers can search, sort, choose a design, upload up to 6 photos, see those photos in the large live design preview, share a design link/text, save a preview, and only then continue to payment.
+
+Payment safety
+--------------
+The new Image Studio UI does not change the backend payment endpoints. The Photo Story payment still uses create-order and verify-payment. Uploading source photos happens before create-order, and no Razorpay checkout opens until the customer explicitly clicks Continue to payment from the preview modal.
+
+Static verification performed
+-----------------------------
+- app.js passes node --check.
+- admin-api, customer-orders and publish-site pass TypeScript compilation with a Deno runtime shim.
+- This patch contains no create-order, verify-payment, razorpay-webhook, retry-order, process-delivery or generate-book files, so those deployed functions are not overwritten by this patch.
+- config.js is intentionally absent from the patch.
+
+Refund safety
+-------------
+There is no customer refund button. Refunds remain admin/support controlled.

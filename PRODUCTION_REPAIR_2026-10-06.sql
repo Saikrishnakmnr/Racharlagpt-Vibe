@@ -111,6 +111,23 @@ create unique index if not exists refunds_razorpay_refund_unique_idx
 on public.refunds(razorpay_refund_id)
 where razorpay_refund_id is not null;
 
+-- Preserve every refund row, but close redundant active duplicates so the
+-- one-active-refund rule can be enforced safely on an existing database.
+with ranked as (
+  select id, row_number() over (
+    partition by order_id
+    order by case when status='processing' then 0 else 1 end, created_at desc, id desc
+  ) as rn
+  from public.refunds
+  where status in ('requested','processing')
+)
+update public.refunds r
+set status='rejected', reviewed_at=coalesce(reviewed_at, now()),
+    admin_note=coalesce(admin_note,'Duplicate active refund record retained as history; only the latest active review remains.')
+from ranked x
+where r.id=x.id and x.rn>1;
+
+drop index if exists public.refunds_one_active_order_idx;
 create unique index if not exists refunds_one_active_order_idx
 on public.refunds(order_id)
 where status in ('requested','processing');
