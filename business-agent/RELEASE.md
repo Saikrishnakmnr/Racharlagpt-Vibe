@@ -76,3 +76,17 @@ Additive schema migration `business_agent_isolated_foundation` was already appli
 - Supabase image bucket write policies now also verify an **active Business Agent license** (read access remains public for product photos/QR intentionally).
 - API v6 and webhook v3 deployed as ACTIVE. Direct shop payment is between customer and shop; Razorpay integration is for the one-time Agent license only.
 - The product is **not yet certified for paid sales**; `BUSINESS_AGENT_SALES_ENABLED` must remain disabled until Razorpay webhook registration, captured-payment activation and refund/recovery end-to-end tests are performed on an externally accessible live deployment.
+
+## PWA installation and shareable shop links — November 3, 2026
+
+- The vendor dashboard now displays the published shop URL and buttons to copy the link, share through WhatsApp, or use the mobile native share sheet (including posting into eligible social platforms).
+- A vendor can send the same public link through WhatsApp, Instagram bio or supported story links, Facebook, SMS or email. Plain Instagram feed captions may not hyperlink URLs.
+- The shared `Racharla Shops` web app has a manifest, tested PNG icon dimensions (192 and 512), a network-first service worker, install/dismiss banner, browser-specific installation help, and last-opened-shop restoration in standalone mode.
+- The PWA is **shared across vendors**, not individually native-branded or guaranteed installable on all browsers. Customers can bookmark multiple unique shop URLs if needed.
+- Hosted catalog checks happen when opened, on refocus after a short interval, on the dedicated Refresh button, and again before generating the WhatsApp order. Changed prices/products cause the in-progress cart to reset rather than silently submitting stale prices. When connection fails, the order is blocked.
+- Vendors can add a text offer/announcement, and saving/publishing a shop again makes the new offer available to online customers. The API persists the announcement (deployed as Business Agent API v7).
+- Customer-facing notice: **Prices, stock, offers and products may change; refresh before ordering.** Owner confirms final amounts.
+- Downloaded standalone shop HTML remains static; its warning tells customers it does **not** sync even after browser Refresh. It includes only the offer at time of export.
+- Live domain installation and public hosting propagation still require real external-device verification. Paid checkout remains closed pending Razorpay webhook and end-to-end tests.
+
+Self-service help: `business-agent/OWNER_GUIDE.md`.
