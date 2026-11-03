@@ -84,7 +84,7 @@ for(const p of (shop.products||[])){
  if(!publicImage?.startsWith("https://"))throw Error("Could not create public photo URL.");
  p.image=publicImage;changed=true;
 }
-return changed;
+const qr=String(shop.merchantQr||"");if(/^data:image\/(png|jpeg|webp);base64,/i.test(qr)){const mime=qr.slice(5,qr.indexOf(";")).toLowerCase(),ext=mime==="image/png"?"png":mime==="image/webp"?"webp":"jpg";const blob=await fetch(qr).then(r=>r.blob());if(blob.size>1500000)throw Error("Merchant QR image exceeds 1.5 MB");const filename=session.user.id+"/payment-qr-"+crypto.randomUUID()+"."+ext;warn("Uploading merchant QR safely…");const res=await client.storage.from("business-agent-images").upload(filename,blob,{contentType:mime,upsert:false});if(res.error)throw Error("Merchant QR upload failed: "+res.error.message);shop.merchantQr=client.storage.from("business-agent-images").getPublicUrl(filename).data.publicUrl;changed=true;}return changed;
 }
 
 $("agentExportHTML").onclick=async()=>{
