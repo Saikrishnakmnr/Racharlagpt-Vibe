@@ -8,7 +8,7 @@ Shops can enable customer pickup, delivery requests, or both. Payment preference
 
 ## Deployment status
 
-This branch is **staging only**, and must not replace the production paid website sales flow until the new purchase / recovery checks pass. The existing website renewal capability must remain accessible for customers who bought a legacy plan. Existing product types and orders must never be dropped or repurposed.
+The Business Agent preview is now merged into GitHub `main` (the hosting deployment still requires public URL verification). The live purchase release is **NOT ENABLED** and must remain locked until the captured-payment, webhook and refund tests pass. The existing website renewal capability must remain accessible for customers who bought a legacy plan. Existing product types and orders must never be dropped or repurposed.
 
 ### Required production checks
 
@@ -44,3 +44,14 @@ Additive schema migration `business_agent_isolated_foundation` was already appli
 - New public shops use `/business-agent/index.html?shop=<slug>` and vendor photos use `business-agent-images` Supabase Storage. Owner operations require valid Supabase Auth bearer session and active license.
 - Existing Razorpay checkout and webhook code for other Vibe products have **not** been replaced.
 - The branch's static HTML and cloud JS passed syntax and DOM-target checks; there is not yet a documented complete, captured test payment and refund cycle. For launch, an end-to-end hosted browser test, user sign-in test and Razorpay test-mode webhooks are still mandatory.
+
+## Public preview launch checkpoint
+
+- GitHub main now contains the Business Agent entry point, cloud editor, idea-based layouts and downloadable storefront HTML template.
+- Vibe old website-sales navigation/pricing was replaced with the new Agent preview; original renewal route and 14 pre-existing orders remain intact.
+- Services may select appointment/quotation enquiries without offering delivery, pickup or upfront payment.
+- Hosted shop images use the separate `business-agent-images` bucket with authenticated vendor-folder write policies.
+- The Supabase backend is ACTIVE and payment collection is still gated OFF.
+- Public URL should be verified independently: `https://vibe.racharlagpt.in/business-agent/index.html` (could not externally confirm hosting propagation from this tool session).
+- Before enabling sales, add/verify live Razorpay webhook subscription to `https://reaxalfzsjhanlfkzotp.supabase.co/functions/v1/business-agent-webhook` for `payment.captured` and `refund.processed`, using a matching server-side webhook secret. Complete Razorpay test-mode checkout, failed-payment, refund, account recovery and live shop QA. Without that, do not tell customers they can buy today.
+- Unresolved pre-existing database advisories include `public.public_vibe_sites` security-definer view and three mutable function search paths; change only after assessing legacy website access. `public.rls_auto_enable()` public execute has been revoked and verified.
