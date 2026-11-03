@@ -5,6 +5,7 @@ Never use client-submitted payment status to activate a license.
 */
 const U=Deno.env.get("SUPABASE_URL")||"",K=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
 const SECRET=Deno.env.get("BUSINESS_AGENT_WEBHOOK_SECRET")||Deno.env.get("RAZORPAY_WEBHOOK_SECRET")||"";
+const RZP_ID=Deno.env.get("RAZORPAY_KEY_ID")||"",RZP_SECRET=Deno.env.get("RAZORPAY_KEY_SECRET")||"";
 const response=(o:unknown,status=200)=>new Response(JSON.stringify(o),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 async function db(path:string,init:RequestInit={}){let r=await fetch(U+"/rest/v1/"+path,{...init,headers:{apikey:K,...(K.startsWith("sb_")?{}:{Authorization:"Bearer "+K}),"Content-Type":"application/json",...(init.headers||{})}});let t=await r.text();if(!r.ok)throw Error("database "+r.status);return t?JSON.parse(t):null}
 async function patch(path:string,data:unknown){return db(path,{method:"PATCH",headers:{"Prefer":"return=minimal"},body:JSON.stringify(data)})}
@@ -34,7 +35,8 @@ Deno.serve(async req=>{
   if(type==="refund.processed"){
    const refund=event.payload?.refund?.entity,pid=String(refund?.payment_id||"");
    if(!pid)return response({ok:true,ignored:true});
-   const rows=await db("business_agent_purchases?razorpay_payment_id=eq."+encodeURIComponent(pid)+"&select=id,user_id,status&limit=1");
+   let rows=await db("business_agent_purchases?razorpay_payment_id=eq."+encodeURIComponent(pid)+"&select=id,user_id,status&limit=1");
+   if(!rows?.length&&RZP_ID&&RZP_SECRET){const pr=await fetch("https://api.razorpay.com/v1/payments/"+encodeURIComponent(pid),{headers:{"Authorization":"Basic "+btoa(RZP_ID+":"+RZP_SECRET)}});if(!pr.ok)throw Error("Cannot reconcile refund payment");const payment=await pr.json();if(payment.order_id)rows=await db("business_agent_purchases?razorpay_order_id=eq."+encodeURIComponent(payment.order_id)+"&select=id,user_id,status&limit=1");}
    if(!rows?.length)return response({ok:true,unrelated:true});
    const p=rows[0];
    if(p.status!=="refunded")await patch("business_agent_purchases?id=eq."+encodeURIComponent(p.id),{status:"refunded",updated_at:new Date().toISOString()});
