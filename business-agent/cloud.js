@@ -56,7 +56,7 @@ async function downloadOwnerEditor(){
   const shop=window.RA_exportShop?.();const seed=shop&&Array.isArray(shop.products)?JSON.stringify({shop}):"{}";if(seed.length>12000000)throw Error("Catalog too large to embed. Back up and reduce your photo sizes.");
   const r=await fetch(base+"/functions/v1/business-agent-download",{method:"POST",headers:{apikey:key,Authorization:"Bearer "+token,"Content-Type":"application/json"},body:seed,cache:"no-store"});
   if(!r.ok){const data=await r.json().catch(()=>({}));throw Error(data.error||"Download failed")}
-  const blob=await r.blob();if(blob.size<12000||blob.size>250000)throw Error("Invalid downloaded app");
+  const blob=await r.blob();if(blob.size<12000||blob.size>15000000)throw Error("Invalid downloaded app");
   const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="Racharla-Independent-Vendor-App.html";document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(link.href),8000);
   warn("Owner app downloaded. Open the HTML file in your browser to manage products without Vibe. Back up your editable catalog regularly. The downloaded app does not automatically sync customers.");
