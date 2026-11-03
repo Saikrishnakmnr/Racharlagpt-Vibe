@@ -34,6 +34,8 @@ async function activate(p:any,pay:any){if(pay.order_id!==p.razorpay_order_id||pa
 async function reconcile(uid:string){const ps=await purchases(uid);for(const p of ps){if(p.status!=="created")continue;const ids=await razorpay("orders/"+encodeURIComponent(p.razorpay_order_id)+"/payments");const captured=(ids.items||[]).find((x:any)=>x.status==="captured"&&x.order_id===p.razorpay_order_id&&x.amount===99900&&x.currency==="INR");if(captured){await activate({...p,user_id:uid},captured);break}}}
 function normalizeShop(d:any,ownerId:string){if(!d||typeof d!=="object"||Array.isArray(d))throw Error("Invalid shop data");
  const name=clean(d.name,90);if(name.length<2)throw Error("Enter your business name");
+ const address=clean(d.address,300);if(address.length<8)throw Error("Enter a full shop address customers can find");
+ const bannerImage=(typeof d.bannerImage==="string"&&d.bannerImage.startsWith(U+"/storage/v1/object/public/business-agent-images/"+ownerId+"/")&&d.bannerImage.length<1200)?d.bannerImage:"";
  const phone=clean(d.phone,25).replace(/[^\d]/g,"");if(!/^\d{8,15}$/.test(phone))throw Error("Enter WhatsApp country code and number");
  const currency=clean(d.currency||"INR",3).toUpperCase();if(!/^[A-Z]{3}$/.test(currency))throw Error("Invalid currency");
  const pickup=!!d.pickup,delivery=!!d.delivery,appointment=!!d.appointment;if(!pickup&&!delivery&&!appointment)throw Error("Enable pickup, delivery or appointment enquiries");
@@ -43,7 +45,7 @@ function normalizeShop(d:any,ownerId:string){if(!d||typeof d!=="object"||Array.i
  const src=Array.isArray(d.products)?d.products:[];if(src.length>200)throw Error("Maximum 200 products per shop");
  const products=src.map((p:any,i:number)=>({id:clean(p.id||"item-"+i,100),name:clean(p.name,100),category:clean(p.category,60),unit:clean(p.unit,30),price:Number(p.price),stock:(p.stock===null||p.stock===undefined||p.stock==="")?null:Number(p.stock),available:p.available!==false&&p.stock!==0,image:(typeof p.image==="string"&&/^https:\/\//.test(p.image)&&p.image.length<1200)?p.image:""}));
  if(products.some((p:any)=>!p.name||!Number.isFinite(p.price)||p.price<0||p.price>10000000||(p.stock!==null&&(!Number.isInteger(p.stock)||p.stock<0||p.stock>999999))))throw Error("Invalid product price or stock");
- return {name,phone,currency,model,idea:clean(d.idea,700),kind:clean(d.kind,30),address:clean(d.address,300),tagline:clean(d.tagline,160),about:clean(d.about,1000),offerText:clean(d.offerText,240),upi,merchantQr,showQr,pickup,delivery,appointment,cashPickup,cashDelivery,directUpi,products};
+ return {name,phone,currency,model,idea:clean(d.idea,700),kind:clean(d.kind,30),address,bannerImage,tagline:clean(d.tagline,160),about:clean(d.about,1000),offerText:clean(d.offerText,240),upi,merchantQr,showQr,pickup,delivery,appointment,cashPickup,cashDelivery,directUpi,products};
 }
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
