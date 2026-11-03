@@ -36,14 +36,14 @@ function normalizeShop(d:any){if(!d||typeof d!=="object"||Array.isArray(d))throw
  const name=clean(d.name,90);if(name.length<2)throw Error("Enter your business name");
  const phone=clean(d.phone,25).replace(/[^\d]/g,"");if(!/^\d{8,15}$/.test(phone))throw Error("Enter WhatsApp country code and number");
  const currency=clean(d.currency||"INR",3).toUpperCase();if(!/^[A-Z]{3}$/.test(currency))throw Error("Invalid currency");
- const pickup=!!d.pickup,delivery=!!d.delivery;if(!pickup&&!delivery)throw Error("Enable pickup or delivery");
+ const pickup=!!d.pickup,delivery=!!d.delivery,appointment=!!d.appointment;if(!pickup&&!delivery&&!appointment)throw Error("Enable pickup, delivery or appointment enquiries");
  const cashPickup=pickup&&!!d.cashPickup,cashDelivery=delivery&&!!d.cashDelivery,directUpi=currency==="INR"&&!!d.directUpi;
- if(!cashPickup&&!cashDelivery&&!directUpi)throw Error("Enable at least one payment method");
+ if(!cashPickup&&!cashDelivery&&!directUpi&&!appointment)throw Error("Enable at least one payment method or enquiry mode");
  const allowed=["vegetables","kirana","meat","restaurant","bakery","salon","photography","wholesale","electronics","general"];const model=allowed.includes(d.model)?d.model:"general";
  const src=Array.isArray(d.products)?d.products:[];if(src.length>200)throw Error("Maximum 200 products per shop");
  const products=src.map((p:any,i:number)=>({id:clean(p.id||"item-"+i,100),name:clean(p.name,100),category:clean(p.category,60),unit:clean(p.unit,30),price:Number(p.price),available:p.available!==false,image:(typeof p.image==="string"&&/^https:\/\//.test(p.image)&&p.image.length<1200)?p.image:""}));
  if(products.some((p:any)=>!p.name||!Number.isFinite(p.price)||p.price<0||p.price>10000000))throw Error("Invalid product or price");
- return {name,phone,currency,model,idea:clean(d.idea,700),kind:clean(d.kind,30),address:clean(d.address,300),tagline:clean(d.tagline,160),about:clean(d.about,1000),upi:currency==="INR"?clean(d.upi,120):"",pickup,delivery,cashPickup,cashDelivery,directUpi,products};
+ return {name,phone,currency,model,idea:clean(d.idea,700),kind:clean(d.kind,30),address:clean(d.address,300),tagline:clean(d.tagline,160),about:clean(d.about,1000),upi:currency==="INR"?clean(d.upi,120):"",pickup,delivery,appointment,cashPickup,cashDelivery,directUpi,products};
 }
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
