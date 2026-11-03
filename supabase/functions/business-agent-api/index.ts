@@ -37,13 +37,13 @@ function normalizeShop(d:any){if(!d||typeof d!=="object"||Array.isArray(d))throw
  const phone=clean(d.phone,25).replace(/[^\d]/g,"");if(!/^\d{8,15}$/.test(phone))throw Error("Enter WhatsApp country code and number");
  const currency=clean(d.currency||"INR",3).toUpperCase();if(!/^[A-Z]{3}$/.test(currency))throw Error("Invalid currency");
  const pickup=!!d.pickup,delivery=!!d.delivery,appointment=!!d.appointment;if(!pickup&&!delivery&&!appointment)throw Error("Enable pickup, delivery or appointment enquiries");
- const cashPickup=pickup&&!!d.cashPickup,cashDelivery=delivery&&!!d.cashDelivery,directUpi=currency==="INR"&&!!d.directUpi;
- if(!cashPickup&&!cashDelivery&&!directUpi&&!appointment)throw Error("Enable at least one payment method or enquiry mode");
+ const cashPickup=pickup&&!!d.cashPickup,cashDelivery=delivery&&!!d.cashDelivery,directUpi=currency==="INR"&&!!d.directUpi,showQr=currency==="INR"&&!!d.showQr;const upi=currency==="INR"?clean(d.upi,120):"";const merchantQr=(typeof d.merchantQr==="string"&&d.merchantQr.startsWith(U+"/storage/v1/object/public/business-agent-images/")&&d.merchantQr.length<1200)?d.merchantQr:"";if(directUpi&&!/^[a-zA-Z0-9._-]{2,100}@[a-zA-Z0-9.-]{2,60}$/.test(upi))throw Error("Enter a valid UPI ID");if(showQr&&!merchantQr)throw Error("Upload your shop QR image before publishing");
+ if(!cashPickup&&!cashDelivery&&!directUpi&&!showQr&&!appointment)throw Error("Enable at least one payment method or enquiry mode");
  const allowed=["vegetables","kirana","meat","restaurant","bakery","salon","photography","wholesale","electronics","general"];const model=allowed.includes(d.model)?d.model:"general";
  const src=Array.isArray(d.products)?d.products:[];if(src.length>200)throw Error("Maximum 200 products per shop");
  const products=src.map((p:any,i:number)=>({id:clean(p.id||"item-"+i,100),name:clean(p.name,100),category:clean(p.category,60),unit:clean(p.unit,30),price:Number(p.price),available:p.available!==false,image:(typeof p.image==="string"&&/^https:\/\//.test(p.image)&&p.image.length<1200)?p.image:""}));
  if(products.some((p:any)=>!p.name||!Number.isFinite(p.price)||p.price<0||p.price>10000000))throw Error("Invalid product or price");
- return {name,phone,currency,model,idea:clean(d.idea,700),kind:clean(d.kind,30),address:clean(d.address,300),tagline:clean(d.tagline,160),about:clean(d.about,1000),upi:currency==="INR"?clean(d.upi,120):"",pickup,delivery,appointment,cashPickup,cashDelivery,directUpi,products};
+ return {name,phone,currency,model,idea:clean(d.idea,700),kind:clean(d.kind,30),address:clean(d.address,300),tagline:clean(d.tagline,160),about:clean(d.about,1000),upi,merchantQr,showQr,pickup,delivery,appointment,cashPickup,cashDelivery,directUpi,products};
 }
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
