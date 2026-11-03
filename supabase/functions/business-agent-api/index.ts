@@ -11,7 +11,7 @@ function clean(s:unknown,max=150){return String(s??"").trim().slice(0,max)}
 function slug(s:unknown){return clean(s,70).toLowerCase()}
 function authHeader(req:Request){return req.headers.get("Authorization")||""}
 async function user(req:Request){let t=authHeader(req).replace(/^Bearer\s+/i,"");if(!t)throw Error("AUTH");let r=await fetch(U+"/auth/v1/user",{headers:{"apikey":K,"Authorization":"Bearer "+t}});if(!r.ok)throw Error("AUTH");const v=await r.json();if(!v?.id)throw Error("AUTH");return v}
-async function db(path:string,init:RequestInit={}){let r=await fetch(U+"/rest/v1/"+path,{...init,headers:{"apikey":K,"Authorization":"Bearer "+K,"Content-Type":"application/json",...(init.headers||{})}});let t=await r.text();if(!r.ok)throw Error("DB:"+r.status+":"+t.slice(0,300));return t?JSON.parse(t):null}
+async function db(path:string,init:RequestInit={}){let r=await fetch(U+"/rest/v1/"+path,{...init,headers:{"apikey":K,...(K.startsWith("sb_")?{}:{"Authorization":"Bearer "+K}),"Content-Type":"application/json",...(init.headers||{})}});let t=await r.text();if(!r.ok)throw Error("DB:"+r.status+":"+t.slice(0,300));return t?JSON.parse(t):null}
 async function patch(path:string,body:unknown){return db(path,{method:"PATCH",headers:{"Prefer":"return=representation"},body:JSON.stringify(body)})}
 async function post(path:string,body:unknown,prefer="return=representation"){return db(path,{method:"POST",headers:{"Prefer":prefer},body:JSON.stringify(body)})}
 function rzpHeaders(){return {"Authorization":"Basic "+btoa(RK+":"+RS),"Content-Type":"application/json"}}
