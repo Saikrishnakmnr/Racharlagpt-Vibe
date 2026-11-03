@@ -43,7 +43,7 @@ function normalizeShop(d:any,ownerId:string){if(!d||typeof d!=="object"||Array.i
  const src=Array.isArray(d.products)?d.products:[];if(src.length>200)throw Error("Maximum 200 products per shop");
  const products=src.map((p:any,i:number)=>({id:clean(p.id||"item-"+i,100),name:clean(p.name,100),category:clean(p.category,60),unit:clean(p.unit,30),price:Number(p.price),stock:(p.stock===null||p.stock===undefined||p.stock==="")?null:Number(p.stock),available:p.available!==false&&p.stock!==0,image:(typeof p.image==="string"&&/^https:\/\//.test(p.image)&&p.image.length<1200)?p.image:""}));
  if(products.some((p:any)=>!p.name||!Number.isFinite(p.price)||p.price<0||p.price>10000000||(p.stock!==null&&(!Number.isInteger(p.stock)||p.stock<0||p.stock>999999))))throw Error("Invalid product price or stock");
- return {name,phone,currency,model,idea:clean(d.idea,700),kind:clean(d.kind,30),address:clean(d.address,300),tagline:clean(d.tagline,160),about:clean(d.about,1000),upi,merchantQr,showQr,pickup,delivery,appointment,cashPickup,cashDelivery,directUpi,products};
+ return {name,phone,currency,model,idea:clean(d.idea,700),kind:clean(d.kind,30),address:clean(d.address,300),tagline:clean(d.tagline,160),about:clean(d.about,1000),offerText:clean(d.offerText,240),upi,merchantQr,showQr,pickup,delivery,appointment,cashPickup,cashDelivery,directUpi,products};
 }
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
