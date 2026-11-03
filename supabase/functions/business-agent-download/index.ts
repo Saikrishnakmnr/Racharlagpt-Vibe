@@ -10,7 +10,7 @@ Deno.serve(async req=>{
  if(req.method!=="GET")return err("Method not allowed",405);
  if(req.headers.get("Origin")&&req.headers.get("Origin")!==allowedOrigin)return err("Invalid origin",403);
  if(!U||!K)return err("Server unavailable",503);
- const bearer=(req.headers.get("Authorization")||"").replace(/^Bearer\\s+/i,"");if(!bearer)return err("Sign in required",401);
+ const bearer=(req.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"");if(!bearer)return err("Sign in required",401);
  try{
   const u=await fetch(U+"/auth/v1/user",{headers:{"apikey":K,"Authorization":"Bearer "+bearer},cache:"no-store"});
   if(!u.ok)return err("Sign in required",401);
