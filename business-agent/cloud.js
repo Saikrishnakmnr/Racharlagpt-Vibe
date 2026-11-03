@@ -87,10 +87,24 @@ for(const p of (shop.products||[])){
 const qr=String(shop.merchantQr||"");if(/^data:image\/(png|jpeg|webp);base64,/i.test(qr)){const mime=qr.slice(5,qr.indexOf(";")).toLowerCase(),ext=mime==="image/png"?"png":mime==="image/webp"?"webp":"jpg";const blob=await fetch(qr).then(r=>r.blob());if(blob.size>1500000)throw Error("Merchant QR image exceeds 1.5 MB");const filename=session.user.id+"/payment-qr-"+crypto.randomUUID()+"."+ext;warn("Uploading merchant QR safely…");const res=await client.storage.from("business-agent-images").upload(filename,blob,{contentType:mime,upsert:false});if(res.error)throw Error("Merchant QR upload failed: "+res.error.message);shop.merchantQr=client.storage.from("business-agent-images").getPublicUrl(filename).data.publicUrl;changed=true;}return changed;
 }
 
+async function embedImagesForOffline(shop){
+ let used=0,linked=0;
+ async function embed(url,cap){if(typeof url!=="string"||!url.startsWith("https://"))return url;
+  try{const r=await fetch(url,{mode:"cors"});if(!r.ok)throw Error("image fetch failed");const blob=await r.blob();
+   if(!/^image\/(jpeg|png|webp)$/.test(blob.type)||blob.size>cap||used+blob.size>18000000)throw Error("image size/type exceeds portable limit");
+   const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||""));reader.onerror=reject;reader.readAsDataURL(blob)});
+   used+=blob.size;return encoded;
+  }catch(e){linked++;return url;}
+ }
+ shop.merchantQr=await embed(shop.merchantQr,1500000);
+ for(const p of (shop.products||[]))p.image=await embed(p.image,1500000);
+ return linked;
+}
+
 $("agentExportHTML").onclick=async()=>{
 if(!licensed)return warn("A verified Business Agent license is required to download your storefront.");
 try{
- const shop=window.RA_exportShop?.();if(!shop)throw Error("Missing shop");
+ const shop=window.RA_exportShop?.();if(!shop)throw Error("Missing shop");warn("Preparing an offline-friendly shop copy…");const externalImages=await embedImagesForOffline(shop);
  const resp=await fetch("shop-export-template.html",{cache:"no-store"});if(!resp.ok)throw Error("Export template unavailable");
  const template=await resp.text();
  if(!template.includes("__SHOP_DATA__"))throw Error("Invalid export template");
@@ -99,7 +113,7 @@ try{
  const blob=new Blob([html],{type:"text/html;charset=utf-8"}),link=document.createElement("a");
  link.href=URL.createObjectURL(blob);link.download=(shop.name||"my-shop").replace(/[^a-z0-9-]+/gi,"-").slice(0,50)+"-rach arla-shop.html".replace(" ","");link.click();
  setTimeout(()=>URL.revokeObjectURL(link.href),2000);
- warn("Customer-shop HTML downloaded. It is a static snapshot; new catalog changes require re-exporting.");
+ warn("Customer-shop HTML downloaded. "+(externalImages?externalImages+" image(s) still need internet access. ":"Images embedded where supported. ")+"This is a static catalog snapshot; re-export after edits.");
 }catch(e){warn("Shop export failed: "+e.message)}
 };
 async function publicShop(){
