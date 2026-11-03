@@ -32,12 +32,12 @@ async function activate(p:any,pay:any){if(pay.order_id!==p.razorpay_order_id||pa
  return await license(p.user_id);
 }
 async function reconcile(uid:string){const ps=await purchases(uid);for(const p of ps){if(p.status!=="created")continue;const ids=await razorpay("orders/"+encodeURIComponent(p.razorpay_order_id)+"/payments");const captured=(ids.items||[]).find((x:any)=>x.status==="captured"&&x.order_id===p.razorpay_order_id&&x.amount===99900&&x.currency==="INR");if(captured){await activate({...p,user_id:uid},captured);break}}}
-function normalizeShop(d:any){if(!d||typeof d!=="object"||Array.isArray(d))throw Error("Invalid shop data");
+function normalizeShop(d:any,ownerId:string){if(!d||typeof d!=="object"||Array.isArray(d))throw Error("Invalid shop data");
  const name=clean(d.name,90);if(name.length<2)throw Error("Enter your business name");
  const phone=clean(d.phone,25).replace(/[^\d]/g,"");if(!/^\d{8,15}$/.test(phone))throw Error("Enter WhatsApp country code and number");
  const currency=clean(d.currency||"INR",3).toUpperCase();if(!/^[A-Z]{3}$/.test(currency))throw Error("Invalid currency");
  const pickup=!!d.pickup,delivery=!!d.delivery,appointment=!!d.appointment;if(!pickup&&!delivery&&!appointment)throw Error("Enable pickup, delivery or appointment enquiries");
- const cashPickup=pickup&&!!d.cashPickup,cashDelivery=delivery&&!!d.cashDelivery,directUpi=currency==="INR"&&!!d.directUpi,showQr=currency==="INR"&&!!d.showQr;const upi=currency==="INR"?clean(d.upi,120):"";const merchantQr=(typeof d.merchantQr==="string"&&d.merchantQr.startsWith(U+"/storage/v1/object/public/business-agent-images/")&&d.merchantQr.length<1200)?d.merchantQr:"";if(directUpi&&!/^[a-zA-Z0-9._-]{2,100}@[a-zA-Z0-9.-]{2,60}$/.test(upi))throw Error("Enter a valid UPI ID");if(showQr&&!merchantQr)throw Error("Upload your shop QR image before publishing");
+ const cashPickup=pickup&&!!d.cashPickup,cashDelivery=delivery&&!!d.cashDelivery,directUpi=currency==="INR"&&!!d.directUpi,showQr=currency==="INR"&&!!d.showQr;const upi=currency==="INR"?clean(d.upi,120):"";const merchantQr=(typeof d.merchantQr==="string"&&d.merchantQr.startsWith(U+"/storage/v1/object/public/business-agent-images/"+ownerId+"/")&&d.merchantQr.length<1200)?d.merchantQr:"";if(directUpi&&!/^[a-zA-Z0-9._-]{2,100}@[a-zA-Z0-9.-]{2,60}$/.test(upi))throw Error("Enter a valid UPI ID");if(showQr&&!merchantQr)throw Error("Upload your shop QR image before publishing");
  if(!cashPickup&&!cashDelivery&&!directUpi&&!showQr&&!appointment)throw Error("Enable at least one payment method or enquiry mode");
  const allowed=["vegetables","kirana","meat","restaurant","bakery","salon","photography","wholesale","electronics","general"];const model=allowed.includes(d.model)?d.model:"general";
  const src=Array.isArray(d.products)?d.products:[];if(src.length>200)throw Error("Maximum 200 products per shop");
@@ -82,7 +82,7 @@ Deno.serve(async req=>{
   }
   if(action==="save"){
    const l=await license(u.id);if(l?.status!=="active")return fail("Paid active license required",403);
-   const shop=normalizeShop(body.shop);
+   const shop=normalizeShop(body.shop,u.id);
    let s=slug(body.slug||shop.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""));
    if(!/^[a-z0-9-]{3,70}$/.test(s))return fail("Use a valid shop URL slug",400);
    let existing=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,slug&limit=1");
