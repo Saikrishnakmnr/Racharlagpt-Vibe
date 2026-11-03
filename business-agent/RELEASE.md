@@ -55,3 +55,14 @@ Additive schema migration `business_agent_isolated_foundation` was already appli
 - Public URL should be verified independently: `https://vibe.racharlagpt.in/business-agent/index.html` (could not externally confirm hosting propagation from this tool session).
 - Before enabling sales, add/verify live Razorpay webhook subscription to `https://reaxalfzsjhanlfkzotp.supabase.co/functions/v1/business-agent-webhook` for `payment.captured` and `refund.processed`, using a matching server-side webhook secret. Complete Razorpay test-mode checkout, failed-payment, refund, account recovery and live shop QA. Without that, do not tell customers they can buy today.
 - Unresolved pre-existing database advisories include `public.public_vibe_sites` security-definer view and three mutable function search paths; change only after assessing legacy website access. `public.rls_auto_enable()` public execute has been revoked and verified.
+
+## Merchant payments and QR implementation — November 3, 2026
+
+- Business owner can enter an INR UPI ID, upload their merchant QR image, and choose whether the customer sees UPI, QR, cash at pickup, cash on delivery, or enquiry-only payment discussions.
+- Vendor QR and product photos are uploaded into the scoped `business-agent-images` Supabase bucket on publication; the backend validates payment settings and restricts QR URLs to that bucket.
+- Customer cart shows only enabled payment preferences. UPI button opens a `upi://pay` intent **without auto-charging a guessed amount**; the business confirms the final total. Owner QR is displayed with explicit recipient-verification warnings.
+- WhatsApp sends an itemized order draft only after the customer presses Send. The platform does not automatically confirm seller receipt or UPI payment status.
+- Customer-shop HTML export now embeds eligible image assets up to a bounded size when accessible; external image URLs may still require internet.
+- Security hardening: legacy timestamp trigger search paths pinned; `rls_auto_enable()` EXECUTE revoked for anonymous and logged-in roles. Legacy `public_vibe_sites` security-definer view remains unchanged pending compatibility analysis.
+- Business Agent Edge Functions deployed: `business-agent-api` version 4 and `business-agent-webhook` version 3 as checked in Supabase. Sales still default to **OFF** via `BUSINESS_AGENT_SALES_ENABLED`.
+- Live site external DNS/URL and complete Razorpay captured-payment/refund webhook tests remain **unverified** in this session; do not enable real sales based only on code compilation.
