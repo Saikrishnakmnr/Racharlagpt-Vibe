@@ -33,3 +33,14 @@ Additive schema migration `business_agent_isolated_foundation` was already appli
 - Vibe navigation on this branch links to the Business Agent preview; old site records and the legacy website route are preserved.
 - GA4 and Monetag fields in `config.js` are currently empty placeholders. Do not claim analytics/ads are running without configuration and consent assessment.
 - No business-agent Razorpay checkout, automated license issuance, durable public hosted catalog, or refund revocation has been activated. This branch remains **DRAFT / NOT READY TO MERGE**.
+
+## Production deployment snapshot — November 3, 2026
+
+- Supabase Edge Functions `business-agent-api` and `business-agent-webhook` have been deployed to Vibe (`reaxalfzsjhanlfkzotp`).
+- Additive tables `business_agent_purchases`, `business_agent_licenses`, `business_agent_shops` and the public, owner-scoped `business-agent-images` bucket are installed.
+- `public.rls_auto_enable()` anonymous/authenticated EXECUTE permission has been revoked.
+- `BUSINESS_AGENT_SALES_ENABLED` defaults to disabled. **Do not set to true** until webhook subscription, payment test, refund revocation and recovery tests are completed.
+- Razorpay webhook URL: `https://reaxalfzsjhanlfkzotp.supabase.co/functions/v1/business-agent-webhook`. Register `payment.captured` and `refund.processed` in Razorpay, with a secret matching server `BUSINESS_AGENT_WEBHOOK_SECRET` or existing `RAZORPAY_WEBHOOK_SECRET`.
+- New public shops use `/business-agent/index.html?shop=<slug>` and vendor photos use `business-agent-images` Supabase Storage. Owner operations require valid Supabase Auth bearer session and active license.
+- Existing Razorpay checkout and webhook code for other Vibe products have **not** been replaced.
+- The branch's static HTML and cloud JS passed syntax and DOM-target checks; there is not yet a documented complete, captured test payment and refund cycle. For launch, an end-to-end hosted browser test, user sign-in test and Razorpay test-mode webhooks are still mandatory.
