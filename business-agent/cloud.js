@@ -53,7 +53,8 @@ async function downloadOwnerEditor(){
  try{
   const token=(await client.auth.getSession()).data.session?.access_token;if(!token)throw Error("Sign in again");
   warn("Preparing your independent owner app…");
-  const r=await fetch(base+"/functions/v1/business-agent-download",{method:"GET",headers:{apikey:key,Authorization:"Bearer "+token},cache:"no-store"});
+  const shop=window.RA_exportShop?.();const seed=shop&&Array.isArray(shop.products)?JSON.stringify({shop}):"{}";if(seed.length>12000000)throw Error("Catalog too large to embed. Back up and reduce your photo sizes.");
+  const r=await fetch(base+"/functions/v1/business-agent-download",{method:"POST",headers:{apikey:key,Authorization:"Bearer "+token,"Content-Type":"application/json"},body:seed,cache:"no-store"});
   if(!r.ok){const data=await r.json().catch(()=>({}));throw Error(data.error||"Download failed")}
   const blob=await r.blob();if(blob.size<12000||blob.size>250000)throw Error("Invalid downloaded app");
   const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="Racharla-Independent-Vendor-App.html";document.body.appendChild(link);link.click();link.remove();
