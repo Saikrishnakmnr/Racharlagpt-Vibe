@@ -34,7 +34,7 @@ async function activate(p:any,pay:any){if(pay.order_id!==p.razorpay_order_id||pa
 async function reconcile(uid:string){const ps=await purchases(uid);for(const p of ps){if(p.status!=="created")continue;const ids=await razorpay("orders/"+encodeURIComponent(p.razorpay_order_id)+"/payments");const captured=(ids.items||[]).find((x:any)=>x.status==="captured"&&x.order_id===p.razorpay_order_id&&x.amount===99900&&x.currency==="INR");if(captured){await activate({...p,user_id:uid},captured);break}}}
 function normalizeShop(d:any,ownerId:string){if(!d||typeof d!=="object"||Array.isArray(d))throw Error("Invalid shop data");
  const name=clean(d.name,90);if(name.length<2)throw Error("Enter your business name");
- const address=clean(d.address,300);if(address.length<8)throw Error("Enter a full shop address customers can find");
+ const address=clean(d.address,300);if(address.length<12)throw Error("Enter a full shop address customers can find");
  const bannerImage=(typeof d.bannerImage==="string"&&d.bannerImage.startsWith(U+"/storage/v1/object/public/business-agent-images/"+ownerId+"/")&&d.bannerImage.length<1200)?d.bannerImage:"";
  const phone=clean(d.phone,25).replace(/[^\d]/g,"");if(!/^\d{8,15}$/.test(phone))throw Error("Enter WhatsApp country code and number");
  const currency=clean(d.currency||"INR",3).toUpperCase();if(!/^[A-Z]{3}$/.test(currency))throw Error("Invalid currency");
