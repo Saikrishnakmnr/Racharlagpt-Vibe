@@ -66,3 +66,13 @@ Additive schema migration `business_agent_isolated_foundation` was already appli
 - Security hardening: legacy timestamp trigger search paths pinned; `rls_auto_enable()` EXECUTE revoked for anonymous and logged-in roles. Legacy `public_vibe_sites` security-definer view remains unchanged pending compatibility analysis.
 - Business Agent Edge Functions deployed: `business-agent-api` version 4 and `business-agent-webhook` version 3 as checked in Supabase. Sales still default to **OFF** via `BUSINESS_AGENT_SALES_ENABLED`.
 - Live site external DNS/URL and complete Razorpay captured-payment/refund webhook tests remain **unverified** in this session; do not enable real sales based only on code compilation.
+
+## Final implementation checkpoint — merchant cash/UPI/QR, catalog edits
+
+- Shop owner can update item names, categories, unit prices and optional stock counts; remove, pause or restock items. Customer storefront excludes unavailable items and enforces recorded quantity caps.
+- Owner can add a UPI ID or their own merchant QR image, independently enable cash at pickup/delivery, and select an enquiry-only business model. UPI/QR are visible only where vendor settings permit.
+- QR image is uploaded to owner-scoped cloud storage, checked for that same owner's folder in the server API, and displayed in hosted and exported customer storefronts.
+- Static HTML export embeds eligible image/QR assets for portability (bounded to 18MB total); it does not automatically sync with the hosted shop or verify payments.
+- Supabase image bucket write policies now also verify an **active Business Agent license** (read access remains public for product photos/QR intentionally).
+- API v6 and webhook v3 deployed as ACTIVE. Direct shop payment is between customer and shop; Razorpay integration is for the one-time Agent license only.
+- The product is **not yet certified for paid sales**; `BUSINESS_AGENT_SALES_ENABLED` must remain disabled until Razorpay webhook registration, captured-payment activation and refund/recovery end-to-end tests are performed on an externally accessible live deployment.
