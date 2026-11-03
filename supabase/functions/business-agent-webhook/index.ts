@@ -39,9 +39,14 @@ Deno.serve(async req=>{
    if(!rows?.length&&RZP_ID&&RZP_SECRET){const pr=await fetch("https://api.razorpay.com/v1/payments/"+encodeURIComponent(pid),{headers:{"Authorization":"Basic "+btoa(RZP_ID+":"+RZP_SECRET)}});if(!pr.ok)throw Error("Cannot reconcile refund payment");const payment=await pr.json();if(payment.order_id)rows=await db("business_agent_purchases?razorpay_order_id=eq."+encodeURIComponent(payment.order_id)+"&select=id,user_id,status&limit=1");}
    if(!rows?.length)return response({ok:true,unrelated:true});
    const p=rows[0];
+   // A partial refund must not revoke a lifetime license. Check total processed refunds with Razorpay.
+   let refunded=Number(refund?.amount||0);
+   if(RZP_ID&&RZP_SECRET){const rr=await fetch("https://api.razorpay.com/v1/payments/"+encodeURIComponent(pid)+"/refunds",{headers:{"Authorization":"Basic "+btoa(RZP_ID+":"+RZP_SECRET)}});if(!rr.ok)throw Error("Cannot verify cumulative refund amount");const history=await rr.json();refunded=(history.items||[]).filter((r:any)=>r.status==="processed").reduce((n:number,r:any)=>n+Number(r.amount||0),0);}
+   if(refunded<99900)return response({ok:true,partial_refund:true});
+   const linked=await db("business_agent_licenses?purchase_id=eq."+encodeURIComponent(p.id)+"&select=id,user_id&limit=1");
    if(p.status!=="refunded")await patch("business_agent_purchases?id=eq."+encodeURIComponent(p.id),{status:"refunded",updated_at:new Date().toISOString()});
    await patch("business_agent_licenses?purchase_id=eq."+encodeURIComponent(p.id),{status:"revoked"});
-   await patch("business_agent_shops?user_id=eq."+encodeURIComponent(p.user_id),{published:false,updated_at:new Date().toISOString()});
+   if(linked?.length)await patch("business_agent_shops?license_id=eq."+encodeURIComponent(linked[0].id),{published:false,updated_at:new Date().toISOString()});
    return response({ok:true,revoked:true});
   }
   return response({ok:true,ignored:true});
