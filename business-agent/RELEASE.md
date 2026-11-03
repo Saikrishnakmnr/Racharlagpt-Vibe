@@ -24,3 +24,12 @@ This branch is **staging only**, and must not replace the production paid websit
 ## Supabase
 
 Additive schema migration `business_agent_isolated_foundation` was already applied to Vibe project `reaxalfzsjhanlfkzotp`. Do not reapply duplicate copies or modify old `orders` / `sites`. All new tables are RLS protected and intended to be used through authenticated APIs only.
+
+## Implementation checkpoint — 2026-11-03
+
+- GitHub staging includes a standalone premium studio and owner-selectable pickup, delivery and payment preferences.
+- The customer-view cart prepares itemized WhatsApp orders; payment is not collected or verified.
+- The **downloadable offline premium package** (provided separately in ChatGPT) additionally has HTML export and was browser-smoke-tested for pickup-only and delivery-only combinations. This repository branch's smaller standalone app is not a complete replacement for that export/publishing pipeline.
+- Vibe navigation on this branch links to the Business Agent preview; old site records and the legacy website route are preserved.
+- GA4 and Monetag fields in `config.js` are currently empty placeholders. Do not claim analytics/ads are running without configuration and consent assessment.
+- No business-agent Razorpay checkout, automated license issuance, durable public hosted catalog, or refund revocation has been activated. This branch remains **DRAFT / NOT READY TO MERGE**.
