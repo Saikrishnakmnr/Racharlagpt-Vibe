@@ -85,7 +85,8 @@ for(const p of (shop.products||[])){
  if(!publicImage?.startsWith("https://"))throw Error("Could not create public photo URL.");
  p.image=publicImage;changed=true;
 }
-const qr=String(shop.merchantQr||"");if(/^data:image\/(png|jpeg|webp);base64,/i.test(qr)){const mime=qr.slice(5,qr.indexOf(";")).toLowerCase(),ext=mime==="image/png"?"png":mime==="image/webp"?"webp":"jpg";const blob=await fetch(qr).then(r=>r.blob());if(blob.size>1500000)throw Error("Merchant QR image exceeds 1.5 MB");const filename=session.user.id+"/payment-qr-"+crypto.randomUUID()+"."+ext;warn("Uploading merchant QR safely…");const res=await client.storage.from("business-agent-images").upload(filename,blob,{contentType:mime,upsert:false});if(res.error)throw Error("Merchant QR upload failed: "+res.error.message);shop.merchantQr=client.storage.from("business-agent-images").getPublicUrl(filename).data.publicUrl;changed=true;}return changed;
+const qr=String(shop.merchantQr||"");if(/^data:image\/(png|jpeg|webp);base64,/i.test(qr)){const mime=qr.slice(5,qr.indexOf(";")).toLowerCase(),ext=mime==="image/png"?"png":mime==="image/webp"?"webp":"jpg";const blob=await fetch(qr).then(r=>r.blob());if(blob.size>1500000)throw Error("Merchant QR image exceeds 1.5 MB");const filename=session.user.id+"/payment-qr-"+crypto.randomUUID()+"."+ext;warn("Uploading merchant QR safely…");const res=await client.storage.from("business-agent-images").upload(filename,blob,{contentType:mime,upsert:false});if(res.error)throw Error("Merchant QR upload failed: "+res.error.message);shop.merchantQr=client.storage.from("business-agent-images").getPublicUrl(filename).data.publicUrl;changed=true;}
+const banner=String(shop.bannerImage||"");if(/^data:image\/(png|jpeg|webp);base64,/i.test(banner)){const mime=banner.slice(5,banner.indexOf(";")).toLowerCase(),ext=mime==="image/png"?"png":mime==="image/webp"?"webp":"jpg";const blob=await fetch(banner).then(r=>r.blob());if(blob.size>4000000)throw Error("Shop banner exceeds 4 MB");const filename=session.user.id+"/shop-banner-"+crypto.randomUUID()+"."+ext;warn("Uploading shop banner…");const res=await client.storage.from("business-agent-images").upload(filename,blob,{contentType:mime,upsert:false});if(res.error)throw Error("Banner upload failed: "+res.error.message);shop.bannerImage=client.storage.from("business-agent-images").getPublicUrl(filename).data.publicUrl;changed=true;}return changed;
 }
 
 async function embedImagesForOffline(shop){
@@ -97,7 +98,7 @@ async function embedImagesForOffline(shop){
    used+=blob.size;return encoded;
   }catch(e){linked++;return url;}
  }
- shop.merchantQr=await embed(shop.merchantQr,1500000);
+ shop.merchantQr=await embed(shop.merchantQr,1500000);shop.bannerImage=await embed(shop.bannerImage,4000000);
  for(const p of (shop.products||[]))p.image=await embed(p.image,1500000);
  return linked;
 }
