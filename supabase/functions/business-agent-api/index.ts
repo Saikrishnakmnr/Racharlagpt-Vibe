@@ -55,12 +55,13 @@ Deno.serve(async req=>{
  try {
   if(action==="public"){const s=slug(body.slug);if(!/^[a-z0-9-]{3,70}$/.test(s))return fail("Invalid shop",400);const rows=await db("business_agent_shops?slug=eq."+encodeURIComponent(s)+"&published=eq.true&select=slug,shop_data&limit=1");if(!rows?.length)return fail("Shop not found",404);return output({shop:rows[0].shop_data,slug:s})}
   const u=await user(req);
-  if(action==="me"){const l=await license(u.id);const rows=l?.status==="active"?await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=slug,published,shop_data&limit=1"):[];return output({licensed:l?.status==="active",shop:rows?.[0]||null,user_email:u.email||null})}
+  if(action==="me"){const l=await license(u.id);const rows=l?.status==="active"?await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=slug,published,shop_data&limit=1"):[];return output({licensed:l?.status==="active",sales_enabled:Deno.env.get("BUSINESS_AGENT_SALES_ENABLED")==="true",shop:rows?.[0]||null,user_email:u.email||null})}
   if(action==="checkout"){
    if(Deno.env.get("BUSINESS_AGENT_SALES_ENABLED")!=="true")return fail("Sales are not live yet. Please use the free preview.",503);
    if(!RK||!RS)return fail("Checkout is not enabled",503);
    let l=await license(u.id);if(l?.status==="active")return output({already_licensed:true});
    if(l?.status==="revoked")return fail("Account requires a support review",403);
+   await reconcile(u.id);if((await license(u.id))?.status==="active")return output({already_licensed:true});
    const ps=await purchases(u.id);for(const p of ps){if(p.status==="created"){let order=await razorpay("orders/"+encodeURIComponent(p.razorpay_order_id));if(order.amount===99900&&order.currency==="INR"&&order.status!=="paid")return output({id:order.id,amount:99900,currency:"INR",key_id:RK,reused:true});}}
    const order=await razorpay("orders",{method:"POST",body:JSON.stringify({amount:99900,currency:"INR",receipt:"rba_"+crypto.randomUUID().replaceAll("-","").slice(0,30),notes:{product:"business_agent"}})});
    await post("business_agent_purchases",{user_id:u.id,razorpay_order_id:order.id,amount_paise:99900,currency:"INR",status:"created"});
