@@ -20,11 +20,11 @@ async function refresh(){
 const current=(await client.auth.getSession()).data.session;session=current;
 $("agentSignIn").hidden=loggedIn();$("agentSignUp").hidden=loggedIn();$("agentGoogle").hidden=loggedIn();$("agentSignOut").hidden=!loggedIn();
 $("accountFields").hidden=loggedIn();
-licensed=false;saved=null;$("agentLoadShop").hidden=true;
+licensed=false;saved=null;$("agentLoadShop").hidden=true;updateShopLinks();
 $("agentBuy").disabled=true;$("agentPublish").disabled=true;$("agentExportHTML").disabled=true;
 if(!loggedIn()){status("Try a free preview. Sign in to purchase or publish a permanent shop.");$("agentShare").textContent="A public shop URL requires a verified Business Agent license.";return}
 status("Checking your purchases for "+(session.user.email||"your account")+"…");
-try{const r=await call("me");licensed=!!r.licensed;saved=r.shop;
+try{const r=await call("me");licensed=!!r.licensed;saved=r.shop;updateShopLinks();
 status(licensed?"✓ Business Agent licensed — "+session.user.email:"Signed in as "+session.user.email+" · free preview");
 $("agentBuy").hidden=licensed;
 $("agentBuy").disabled=!loggedIn()||licensed||!r.sales_enabled;
@@ -63,7 +63,7 @@ finally{processing=false}
 $("agentPublish").onclick=async()=>{
 if(processing)return;if(!licensed)return warn("A verified purchase is required before publishing.");processing=true;
 $("agentPublish").disabled=true;
-try{let shop=window.RA_exportShop?.();if(!shop)throw Error("Missing shop data");const uploaded=await uploadProductPhotos(shop);const slug=$("agentSlug").value.trim().toLowerCase(),published=$("agentVisibility").value==="true";if(!/^[a-z0-9-]{3,70}$/.test(slug))throw Error("Use 3–70 lowercase letters, numbers or hyphens for your shop URL.");const result=await call("save",{shop,slug,published});if(uploaded)window.RA_importShop?.(shop);$("agentShare").textContent=published?"Your shop is live: "+location.origin+location.pathname+"?shop="+encodeURIComponent(result.slug):"Private draft saved successfully.";warn(published?"Shop published. Copy the displayed URL and open it in another browser to verify.":"Your shop draft is saved.");await refresh();
+try{let shop=window.RA_exportShop?.();if(!shop)throw Error("Missing shop data");const uploaded=await uploadProductPhotos(shop);const slug=$("agentSlug").value.trim().toLowerCase(),published=$("agentVisibility").value==="true";if(!/^[a-z0-9-]{3,70}$/.test(slug))throw Error("Use 3–70 lowercase letters, numbers or hyphens for your shop URL.");const result=await call("save",{shop,slug,published});saved={slug:result.slug,published:!!result.published,shop_data:shop};updateShopLinks();if(uploaded)window.RA_importShop?.(shop);$("agentShare").textContent=published?"Your shop is live: "+location.origin+location.pathname+"?shop="+encodeURIComponent(result.slug):"Private draft saved successfully.";warn(published?"Shop published. Copy the displayed URL and open it in another browser to verify.":"Your shop draft is saved.");await refresh();
 }catch(e){warn("Cannot save shop: "+e.message)}
 finally{processing=false;$("agentPublish").disabled=!licensed}
 };
@@ -116,11 +116,101 @@ try{
  warn("Customer-shop HTML downloaded. "+(externalImages?externalImages+" image(s) still need internet access. ":"Images embedded where supported. ")+"This is a static catalog snapshot; re-export after edits.");
 }catch(e){warn("Shop export failed: "+e.message)}
 };
+
+let currentShopSlug=null,currentPublicShop=null,lastChecked=0,deferredInstall=null,installed=false;
+const publicUrl=slug=>location.origin+location.pathname+"?shop="+encodeURIComponent(slug);
+const shopStateKey="rba_last_shop_v1",dismissPrefix="rba_install_dismissed_";
+function shareUrl(){
+ const url=$("publishedShopUrl").value.trim();if(!url||!saved?.published){warn("Publish your shop before sharing a customer link.");return null}return url;
+}
+async function copyText(v){
+ if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(v);return true}catch{}}
+ const input=document.createElement("textarea");input.value=v;input.style.position="fixed";input.style.opacity="0";document.body.appendChild(input);input.select();
+ let worked=false;try{worked=document.execCommand("copy")}catch{}input.remove();return worked;
+}
+function updateShopLinks(){
+ const url=saved?.published?publicUrl(saved.slug):"";
+ $("publishedShopUrl").value=url;["shareWhatsApp","shareNative","copyShopUrl"].forEach(id=>$(id).disabled=!url);
+}
+$("shareWhatsApp").onclick=()=>{const url=shareUrl();if(!url)return;const text="Discover "+(saved?.shop_data?.name||"our shop")+" — browse products, prices and order via WhatsApp:\n"+url;window.open("https://wa.me/?text="+encodeURIComponent(text),"_blank","noopener,noreferrer")};
+$("shareNative").onclick=async()=>{const url=shareUrl();if(!url)return;const title=saved?.shop_data?.name||"Our business shop";if(navigator.share){try{await navigator.share({title,text:"Browse our latest products and services",url});return}catch(e){if(e?.name==="AbortError")return}}const ok=await copyText(url);warn(ok?"Shop link copied. Paste it into Instagram bio, WhatsApp, Facebook or SMS.":"Copy the displayed link to share your shop.")};
+$("copyShopUrl").onclick=async()=>{const url=shareUrl();if(url)warn(await copyText(url)?"Your shop URL is copied.":"Select and copy your shop URL manually.")};
+$("publishedShopUrl").onclick=function(){this.select()};
+function standalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
+function showInstallPrompt(){
+ $("installHelp").hidden=true;
+ if(standalone()||installed){$("customerInstallBanner").hidden=true;return}
+ const dismissed=Number(localStorage.getItem(dismissPrefix+currentShopSlug)||0);
+ $("customerInstallBanner").hidden=!!(dismissed&&Date.now()-dismissed<30*86400000);
+}
+function installHelp(){
+ $("installHelp").hidden=false;
+ $("installInstructions").textContent=/iPhone|iPad|iPod/i.test(navigator.userAgent)?"On iPhone: Open this shop in Safari. Tap Share, then Add to Home Screen.": "Open your browser menu and choose Install app or Add to Home Screen if available. If you already installed Racharla Shops, opening it will return to the last shop you visited.";
+}
+async function installClick(){
+ if(standalone()||installed){$("customerUpdateStatus").textContent="This Racharla Shops app is already installed.";return}
+ if(deferredInstall){const e=deferredInstall;deferredInstall=null;try{await e.prompt();const choice=await e.userChoice;if(choice?.outcome==="accepted"){$("customerInstallBanner").hidden=true;$("customerUpdateStatus").textContent="Install accepted. Your home-screen icon will open Racharla Shops."}else installHelp()}catch{installHelp()}}
+ else installHelp();
+}
+$("customerInstall").onclick=installClick;
+$("installBannerAction").onclick=installClick;
+$("installDismiss").onclick=()=>{$("installHelp").hidden=true};
+$("installBannerDismiss").onclick=()=>{if(currentShopSlug)localStorage.setItem(dismissPrefix+currentShopSlug,String(Date.now()));$("customerInstallBanner").hidden=true};
+addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstall=e;showInstallPrompt()});
+addEventListener("appinstalled",()=>{installed=true;deferredInstall=null;$("customerInstallBanner").hidden=true;$("installHelp").hidden=true});
+async function shareCustomer(){
+ const url=location.origin+location.pathname+"?shop="+encodeURIComponent(currentShopSlug||"");
+ if(navigator.share){try{await navigator.share({title:currentPublicShop?.name||"Shop",text:"See current products and order on WhatsApp",url});return}catch(e){if(e?.name==="AbortError")return}}
+ $("customerUpdateStatus").textContent=await copyText(url)?"Shop link copied. Share it with friends.":"Copy the shop link from your browser's address bar.";
+}
+$("customerShare").onclick=shareCustomer;
+async function refreshPublicCatalog({quiet=false}={}){
+ if(!currentShopSlug)return true;
+ if(!quiet)$("customerUpdateStatus").textContent="Checking latest products and prices…";
+ try{
+  const response=await call("public",{slug:currentShopSlug},false);
+  const latest=response.shop;
+  lastChecked=Date.now();
+  const updated=JSON.stringify(latest)!==JSON.stringify(currentPublicShop);
+  if(updated){
+   currentPublicShop=latest;
+   window.RA_openPublicShop?.(latest);
+   $("customerUpdateStatus").textContent="The seller has updated this shop. The latest prices and products are shown. Please select your items again.";
+  }else if(!quiet)$("customerUpdateStatus").textContent="Catalog is up to date. Seller confirms final prices and availability.";
+  return !updated;
+ }catch(e){
+  $("customerUpdateStatus").textContent="Cannot check live prices or availability. Check your internet connection and refresh before ordering.";
+  return false;
+ }
+}
+window.RA_beforeOrder=()=>refreshPublicCatalog({quiet:true});
+$("refreshCatalog").onclick=()=>refreshPublicCatalog();
+addEventListener("visibilitychange",()=>{if(!document.hidden&&currentShopSlug&&Date.now()-lastChecked>45000)refreshPublicCatalog({quiet:true})});
+addEventListener("focus",()=>{if(currentShopSlug&&Date.now()-lastChecked>45000)refreshPublicCatalog({quiet:true})});
+if("serviceWorker" in navigator&&location.protocol==="https:"){navigator.serviceWorker.register("./sw.js",{scope:"./"}).catch(()=>{})}
 async function publicShop(){
-const url=new URL(location.href),slug=url.searchParams.get("shop");if(!slug)return false;
-document.title="Shop on Racharla Business Agent";
-try{let r=await call("public",{slug},false);$("accountPanel").hidden=true;window.RA_openPublicShop?.(r.shop);return true}
-catch(e){$("studio").hidden=false;status("Could not open this shop: "+e.message);warn("This shop may be private, unpublished or unavailable.");return true}
+ const url=new URL(location.href);
+ let slug=url.searchParams.get("shop");
+ if(!slug&&url.searchParams.get("launch")==="shop"&&standalone()){try{slug=localStorage.getItem(shopStateKey)||""}catch{}}
+ if(!slug)return false;
+ if(!/^[a-z0-9-]{3,70}$/.test(slug)){status("Invalid shop URL");return true}
+ document.title="Shop on Racharla Business Agent";
+ try{
+  let r=await call("public",{slug},false);
+  currentShopSlug=slug;currentPublicShop=r.shop;lastChecked=Date.now();
+  try{localStorage.setItem(shopStateKey,slug)}catch{}
+  $("accountPanel").hidden=true;
+  window.RA_openPublicShop?.(r.shop);
+  $("customerUpdateStatus").textContent="Live shop loaded. Refresh before ordering; prices and stock may change.";
+  showInstallPrompt();
+  return true;
+ }catch(e){
+  $("studio").hidden=false;
+  status("Could not open this shop: "+e.message);
+  warn("This shop may be private, unpublished or unavailable. Try again online.");
+  return true;
+ }
 }
 (async()=>{if(await publicShop())return;await refresh();client.auth.onAuthStateChange(()=>{setTimeout(()=>refresh(),0)})})();
+
 })();
