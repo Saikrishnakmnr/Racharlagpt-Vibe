@@ -57,6 +57,7 @@ Deno.serve(async req=>{
   const u=await user(req);
   if(action==="me"){const l=await license(u.id);const rows=l?.status==="active"?await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=slug,published,shop_data&limit=1"):[];return output({licensed:l?.status==="active",shop:rows?.[0]||null,user_email:u.email||null})}
   if(action==="checkout"){
+   if(Deno.env.get("BUSINESS_AGENT_SALES_ENABLED")!=="true")return fail("Sales are not live yet. Please use the free preview.",503);
    if(!RK||!RS)return fail("Checkout is not enabled",503);
    let l=await license(u.id);if(l?.status==="active")return output({already_licensed:true});
    if(l?.status==="revoked")return fail("Account requires a support review",403);
