@@ -22,10 +22,11 @@ $("agentSignIn").hidden=loggedIn();$("agentSignUp").hidden=loggedIn();$("agentGo
 $("accountFields").hidden=loggedIn();
 licensed=false;saved=null;$("agentLoadShop").hidden=true;updateShopLinks();
 $("agentBuy").disabled=true;$("agentPublish").disabled=true;$("agentExportHTML").disabled=true;
-if(!loggedIn()){status("Try a free preview. Sign in to purchase or publish a permanent shop.");$("agentShare").textContent="A public shop URL requires a verified Business Agent license.";return}
+if(!loggedIn()){$("agentSalesState").textContent="Preview is free. Sign in to buy and publish once checkout opens.";status("Try a free preview. Sign in to purchase or publish a permanent shop.");$("agentShare").textContent="A public shop URL requires a verified Business Agent license.";return}
 status("Checking your purchases for "+(session.user.email||"your account")+"…");
 try{const r=await call("me");licensed=!!r.licensed;saved=r.shop;updateShopLinks();
 status(licensed?"✓ Business Agent licensed — "+session.user.email:"Signed in as "+session.user.email+" · free preview");
+$("agentSalesState").textContent=licensed?"✓ Licensed: save, publish and manage your hosted shop whenever you sign in.":r.sales_enabled?"Preview complete? Buy ₹999 once to activate publishing and export.":"Your free preview is saved on this device. ₹999 checkout is temporarily disabled until payment and refund verification is complete.";
 $("agentBuy").hidden=licensed;
 $("agentBuy").disabled=!loggedIn()||licensed||!r.sales_enabled;
 $("agentPublish").disabled=!licensed;$("agentExportHTML").disabled=!licensed;
@@ -152,6 +153,7 @@ async function installClick(){
  if(deferredInstall){const e=deferredInstall;deferredInstall=null;try{await e.prompt();const choice=await e.userChoice;if(choice?.outcome==="accepted"){$("customerInstallBanner").hidden=true;$("customerUpdateStatus").textContent="Install accepted. Your home-screen icon will open Racharla Shops."}else installHelp()}catch{installHelp()}}
  else installHelp();
 }
+$("vendorInstall").onclick=async()=>{if(standalone())return warn("Racharla Shops is already running as an installed web app. Bookmark this dashboard for easy owner access.");if(deferredInstall){const prompt=deferredInstall;deferredInstall=null;try{await prompt.prompt();const result=await prompt.userChoice;if(result?.outcome==="accepted"){warn("Racharla Shops installed. Sign in any time to manage and publish your shop.");return}}catch{}}warn(/iPhone|iPad|iPod/i.test(navigator.userAgent)?"To add your owner dashboard on iPhone, open in Safari → Share → Add to Home Screen. The installed shared app may resume the last customer shop. Bookmark the vendor dashboard separately.":"Use your browser menu → Install app or Add to Home Screen. Bookmark this vendor dashboard if the installed Racharla Shops app opens a customer shop instead.");};
 $("customerInstall").onclick=installClick;
 $("installBannerAction").onclick=installClick;
 $("installDismiss").onclick=()=>{$("installHelp").hidden=true};
