@@ -62,10 +62,30 @@ finally{processing=false}
 $("agentPublish").onclick=async()=>{
 if(processing)return;if(!licensed)return warn("A verified purchase is required before publishing.");processing=true;
 $("agentPublish").disabled=true;
-try{let shop=window.RA_exportShop?.();if(!shop)throw Error("Missing shop data");const slug=$("agentSlug").value.trim().toLowerCase(),published=$("agentVisibility").value==="true";if(!/^[a-z0-9-]{3,70}$/.test(slug))throw Error("Use 3–70 lowercase letters, numbers or hyphens for your shop URL.");const result=await call("save",{shop,slug,published});$("agentShare").textContent=published?"Your shop is live: "+location.origin+location.pathname+"?shop="+encodeURIComponent(result.slug):"Private draft saved successfully.";warn(published?"Shop published. Copy the displayed URL and open it in another browser to verify.":"Your shop draft is saved.");await refresh();
+try{let shop=window.RA_exportShop?.();if(!shop)throw Error("Missing shop data");const uploaded=await uploadProductPhotos(shop);const slug=$("agentSlug").value.trim().toLowerCase(),published=$("agentVisibility").value==="true";if(!/^[a-z0-9-]{3,70}$/.test(slug))throw Error("Use 3–70 lowercase letters, numbers or hyphens for your shop URL.");const result=await call("save",{shop,slug,published});if(uploaded)window.RA_importShop?.(shop);$("agentShare").textContent=published?"Your shop is live: "+location.origin+location.pathname+"?shop="+encodeURIComponent(result.slug):"Private draft saved successfully.";warn(published?"Shop published. Copy the displayed URL and open it in another browser to verify.":"Your shop draft is saved.");await refresh();
 }catch(e){warn("Cannot save shop: "+e.message)}
 finally{processing=false;$("agentPublish").disabled=!licensed}
 };
+async function uploadProductPhotos(shop){
+let changed=false;
+for(const p of (shop.products||[])){
+ const raw=String(p.image||"");
+ if(!/^data:image\/(png|jpeg|webp);base64,/i.test(raw))continue;
+ const mime=raw.slice(5,raw.indexOf(";")).toLowerCase();
+ const ext=mime==="image/png"?"png":mime==="image/webp"?"webp":"jpg";
+ const blob=await fetch(raw).then(r=>r.blob());
+ if(blob.size>5242880)throw Error("An image exceeds the 5 MB upload limit.");
+ const filename=session.user.id+"/"+crypto.randomUUID()+"."+ext;
+ warn("Uploading product photos securely…");
+ const result=await client.storage.from("business-agent-images").upload(filename,blob,{contentType:mime,cacheControl:"3600",upsert:false});
+ if(result.error)throw Error("Photo upload failed: "+result.error.message);
+ const publicImage=client.storage.from("business-agent-images").getPublicUrl(filename).data.publicUrl;
+ if(!publicImage?.startsWith("https://"))throw Error("Could not create public photo URL.");
+ p.image=publicImage;changed=true;
+}
+return changed;
+}
+
 async function publicShop(){
 const url=new URL(location.href),slug=url.searchParams.get("shop");if(!slug)return false;
 document.title="Shop on Racharla Business Agent";
