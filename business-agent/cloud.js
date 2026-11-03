@@ -21,7 +21,7 @@ const current=(await client.auth.getSession()).data.session;session=current;
 $("agentSignIn").hidden=loggedIn();$("agentSignUp").hidden=loggedIn();$("agentGoogle").hidden=loggedIn();$("agentSignOut").hidden=!loggedIn();
 $("accountFields").hidden=loggedIn();
 licensed=false;saved=null;$("agentLoadShop").hidden=true;updateShopLinks();
-$("agentBuy").disabled=true;$("agentPublish").disabled=true;$("agentExportHTML").disabled=true;
+$("agentBuy").disabled=true;$("agentPublish").disabled=true;$("agentExportHTML").disabled=true;$("agentDownloadOwner").disabled=true;$("agentDownloadOwnerPublish").disabled=true;
 if(!loggedIn()){$("agentSalesState").textContent="Preview is free. Sign in to buy and publish once checkout opens.";status("Try a free preview. Sign in to purchase or publish a permanent shop.");$("agentShare").textContent="A public shop URL requires a verified Business Agent license.";return}
 status("Checking your purchases for "+(session.user.email||"your account")+"…");
 try{const r=await call("me");licensed=!!r.licensed;saved=r.shop;updateShopLinks();
@@ -29,7 +29,7 @@ status(licensed?"✓ Business Agent licensed — "+session.user.email:"Signed in
 $("agentSalesState").textContent=licensed?"✓ Licensed: save, publish and manage your hosted shop whenever you sign in.":r.sales_enabled?"Preview complete? Buy ₹999 once to activate publishing and export.":"Your free preview is saved on this device. ₹999 checkout is temporarily disabled until payment and refund verification is complete.";
 $("agentBuy").hidden=licensed;
 $("agentBuy").disabled=!loggedIn()||licensed||!r.sales_enabled;
-$("agentPublish").disabled=!licensed;$("agentExportHTML").disabled=!licensed;
+$("agentPublish").disabled=!licensed;$("agentExportHTML").disabled=!licensed;$("agentDownloadOwner").disabled=!licensed;$("agentDownloadOwnerPublish").disabled=!licensed;
 if(saved){$("agentLoadShop").hidden=false;$("agentSlug").value=saved.slug;$("agentVisibility").value=String(!!saved.published);$("agentShare").textContent=saved.published?"Your shop: "+location.origin+location.pathname+"?shop="+encodeURIComponent(saved.slug):"Shop saved privately. Publish when ready.";
 const local=window.RA_exportShop?.();const isDemo=!!local?.products?.length&&local.products.every(p=>String(p.id).startsWith("demo-"));if(saved.shop_data&&loadedFor!==session.user.id&&(isDemo||!local?.products?.length)){window.RA_importShop?.(saved.shop_data);loadedFor=session.user.id;}
 }else if(licensed){$("agentShare").textContent="Enter a unique shop address and press Save & publish."}
@@ -48,6 +48,21 @@ $("agentSignUp").onclick=()=>auth("signUp").catch(e=>warn(e.message));
 $("agentGoogle").onclick=async()=>{const r=await client.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname}});if(r.error)warn(r.error.message)};
 $("agentSignOut").onclick=async()=>{loadedFor=null;await client.auth.signOut();await refresh()};
 $("agentLoadShop").onclick=()=>{if(!saved?.shop_data)return warn("No saved shop found.");if(confirm("Restore your saved shop from the cloud? Unsaved changes on this device will be replaced.")){window.RA_importShop?.(saved.shop_data);loadedFor=session?.user?.id||null;warn("Your cloud shop has been restored.")}};
+async function downloadOwnerEditor(){
+ if(!loggedIn()||!licensed){warn("Sign in to a licensed Business Agent account before downloading.");return}
+ try{
+  const token=(await client.auth.getSession()).data.session?.access_token;if(!token)throw Error("Sign in again");
+  warn("Preparing your independent owner app…");
+  const r=await fetch(base+"/functions/v1/business-agent-download",{method:"GET",headers:{apikey:key,Authorization:"Bearer "+token},cache:"no-store"});
+  if(!r.ok){const data=await r.json().catch(()=>({}));throw Error(data.error||"Download failed")}
+  const blob=await r.blob();if(blob.size<12000||blob.size>250000)throw Error("Invalid downloaded app");
+  const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="Racharla-Independent-Vendor-App.html";document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(link.href),8000);
+  warn("Owner app downloaded. Open the HTML file in your browser to manage products without Vibe. Back up your editable catalog regularly. The downloaded app does not automatically sync customers.");
+ }catch(e){warn("Owner app download failed: "+e.message)}
+}
+$("agentDownloadOwner").onclick=downloadOwnerEditor;
+$("agentDownloadOwnerPublish").onclick=downloadOwnerEditor;
 $("agentRecover").onclick=async()=>{if(!loggedIn())return warn("Sign in to recover your payment.");if(processing)return;processing=true;try{warn("Checking Razorpay payment records…");const r=await call("recover");warn(r.licensed?"Payment recovered and license active.":"No captured Business Agent purchase found. If charged, contact support with your Razorpay order ID.");await refresh()}catch(e){warn("Recovery failed: "+e.message)}finally{processing=false}};
 $("agentBuy").onclick=async()=>{
 if(processing)return;if(!loggedIn())return warn("Sign in before purchasing.");processing=true;
