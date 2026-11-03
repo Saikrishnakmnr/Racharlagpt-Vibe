@@ -27,12 +27,12 @@ status("Checking your purchases for "+(session.user.email||"your account")+"…"
 try{const r=await call("me");licensed=!!r.licensed;saved=r.shop;
 status(licensed?"✓ Business Agent licensed — "+session.user.email:"Signed in as "+session.user.email+" · free preview");
 $("agentBuy").hidden=licensed;
-$("agentBuy").disabled=!loggedIn()||licensed; // Server independently blocks checkout until launch gate is enabled.
+$("agentBuy").disabled=!loggedIn()||licensed||!r.sales_enabled;
 $("agentPublish").disabled=!licensed;
 if(saved){$("agentSlug").value=saved.slug;$("agentVisibility").value=String(!!saved.published);$("agentShare").textContent=saved.published?"Your shop: "+location.origin+location.pathname+"?shop="+encodeURIComponent(saved.slug):"Shop saved privately. Publish when ready.";
 const local=window.RA_exportShop?.();if(!local?.products?.length&&saved.shop_data)window.RA_importShop?.(saved.shop_data);
 }else if(licensed){$("agentShare").textContent="Enter a unique shop address and press Save & publish."}
-warn(licensed?"You own your Business Agent license. Publish your shop or edit your catalog.":"Free preview available. ₹999 purchase is subject to final launch verification.")
+warn(licensed?"You own your Business Agent license. Publish your shop or edit your catalog.":r.sales_enabled?"₹999 purchase available. Review the product and refund terms before paying.":"Free preview available. ₹999 purchase will open only after final checkout and recovery tests.")
 }catch(e){status("Account is connected, but the shop service could not be reached: "+e.message);warn("Live sales and hosting are not available while this error persists.")}
 }
 async function auth(action){
