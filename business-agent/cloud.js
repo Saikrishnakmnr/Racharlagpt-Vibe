@@ -7,7 +7,7 @@ const $=id=>document.getElementById(id);
 if(!window.supabase||!base||!key){$("accountStatus").textContent="Cloud services unavailable. You can still try the local preview.";return}
 const client=window.supabase.createClient(base,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 const API=base+"/functions/v1/business-agent-api";
-let session=null,licensed=false,saved=null,processing=false;
+let session=null,licensed=false,saved=null,processing=false,loadedFor=null;
 function status(s){$("accountStatus").textContent=s}
 function warn(s){$("salesWarning").textContent=s}
 async function call(action,data={},requiresAuth=true){let headers={"Content-Type":"application/json","apikey":key};
@@ -20,7 +20,7 @@ async function refresh(){
 const current=(await client.auth.getSession()).data.session;session=current;
 $("agentSignIn").hidden=loggedIn();$("agentSignUp").hidden=loggedIn();$("agentGoogle").hidden=loggedIn();$("agentSignOut").hidden=!loggedIn();
 $("accountFields").hidden=loggedIn();
-licensed=false;saved=null;
+licensed=false;saved=null;$("agentLoadShop").hidden=true;
 $("agentBuy").disabled=true;$("agentPublish").disabled=true;
 if(!loggedIn()){status("Try a free preview. Sign in to purchase or publish a permanent shop.");$("agentShare").textContent="A public shop URL requires a verified Business Agent license.";return}
 status("Checking your purchases for "+(session.user.email||"your account")+"…");
@@ -29,8 +29,8 @@ status(licensed?"✓ Business Agent licensed — "+session.user.email:"Signed in
 $("agentBuy").hidden=licensed;
 $("agentBuy").disabled=!loggedIn()||licensed||!r.sales_enabled;
 $("agentPublish").disabled=!licensed;
-if(saved){$("agentSlug").value=saved.slug;$("agentVisibility").value=String(!!saved.published);$("agentShare").textContent=saved.published?"Your shop: "+location.origin+location.pathname+"?shop="+encodeURIComponent(saved.slug):"Shop saved privately. Publish when ready.";
-const local=window.RA_exportShop?.();if(!local?.products?.length&&saved.shop_data)window.RA_importShop?.(saved.shop_data);
+if(saved){$("agentLoadShop").hidden=false;$("agentSlug").value=saved.slug;$("agentVisibility").value=String(!!saved.published);$("agentShare").textContent=saved.published?"Your shop: "+location.origin+location.pathname+"?shop="+encodeURIComponent(saved.slug):"Shop saved privately. Publish when ready.";
+const local=window.RA_exportShop?.();const isDemo=!!local?.products?.length&&local.products.every(p=>String(p.id).startsWith("demo-"));if(saved.shop_data&&loadedFor!==session.user.id&&(isDemo||!local?.products?.length)){window.RA_importShop?.(saved.shop_data);loadedFor=session.user.id;}
 }else if(licensed){$("agentShare").textContent="Enter a unique shop address and press Save & publish."}
 warn(licensed?"You own your Business Agent license. Publish your shop or edit your catalog.":r.sales_enabled?"₹999 purchase available. Review the product and refund terms before paying.":"Free preview available. ₹999 purchase will open only after final checkout and recovery tests.")
 }catch(e){status("Account is connected, but the shop service could not be reached: "+e.message);warn("Live sales and hosting are not available while this error persists.")}
@@ -45,7 +45,8 @@ await refresh()}
 $("agentSignIn").onclick=()=>auth("signIn").catch(e=>warn(e.message));
 $("agentSignUp").onclick=()=>auth("signUp").catch(e=>warn(e.message));
 $("agentGoogle").onclick=async()=>{const r=await client.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname}});if(r.error)warn(r.error.message)};
-$("agentSignOut").onclick=async()=>{await client.auth.signOut();await refresh()};
+$("agentSignOut").onclick=async()=>{loadedFor=null;await client.auth.signOut();await refresh()};
+$("agentLoadShop").onclick=()=>{if(!saved?.shop_data)return warn("No saved shop found.");if(confirm("Restore your saved shop from the cloud? Unsaved changes on this device will be replaced.")){window.RA_importShop?.(saved.shop_data);loadedFor=session?.user?.id||null;warn("Your cloud shop has been restored.")}};
 $("agentRecover").onclick=async()=>{if(!loggedIn())return warn("Sign in to recover your payment.");if(processing)return;processing=true;try{warn("Checking Razorpay payment records…");const r=await call("recover");warn(r.licensed?"Payment recovered and license active.":"No captured Business Agent purchase found. If charged, contact support with your Razorpay order ID.");await refresh()}catch(e){warn("Recovery failed: "+e.message)}finally{processing=false}};
 $("agentBuy").onclick=async()=>{
 if(processing)return;if(!loggedIn())return warn("Sign in before purchasing.");processing=true;
