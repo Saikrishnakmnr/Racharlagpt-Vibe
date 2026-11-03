@@ -21,14 +21,14 @@ const current=(await client.auth.getSession()).data.session;session=current;
 $("agentSignIn").hidden=loggedIn();$("agentSignUp").hidden=loggedIn();$("agentGoogle").hidden=loggedIn();$("agentSignOut").hidden=!loggedIn();
 $("accountFields").hidden=loggedIn();
 licensed=false;saved=null;$("agentLoadShop").hidden=true;
-$("agentBuy").disabled=true;$("agentPublish").disabled=true;
+$("agentBuy").disabled=true;$("agentPublish").disabled=true;$("agentExportHTML").disabled=true;
 if(!loggedIn()){status("Try a free preview. Sign in to purchase or publish a permanent shop.");$("agentShare").textContent="A public shop URL requires a verified Business Agent license.";return}
 status("Checking your purchases for "+(session.user.email||"your account")+"…");
 try{const r=await call("me");licensed=!!r.licensed;saved=r.shop;
 status(licensed?"✓ Business Agent licensed — "+session.user.email:"Signed in as "+session.user.email+" · free preview");
 $("agentBuy").hidden=licensed;
 $("agentBuy").disabled=!loggedIn()||licensed||!r.sales_enabled;
-$("agentPublish").disabled=!licensed;
+$("agentPublish").disabled=!licensed;$("agentExportHTML").disabled=!licensed;
 if(saved){$("agentLoadShop").hidden=false;$("agentSlug").value=saved.slug;$("agentVisibility").value=String(!!saved.published);$("agentShare").textContent=saved.published?"Your shop: "+location.origin+location.pathname+"?shop="+encodeURIComponent(saved.slug):"Shop saved privately. Publish when ready.";
 const local=window.RA_exportShop?.();const isDemo=!!local?.products?.length&&local.products.every(p=>String(p.id).startsWith("demo-"));if(saved.shop_data&&loadedFor!==session.user.id&&(isDemo||!local?.products?.length)){window.RA_importShop?.(saved.shop_data);loadedFor=session.user.id;}
 }else if(licensed){$("agentShare").textContent="Enter a unique shop address and press Save & publish."}
@@ -87,6 +87,21 @@ for(const p of (shop.products||[])){
 return changed;
 }
 
+$("agentExportHTML").onclick=async()=>{
+if(!licensed)return warn("A verified Business Agent license is required to download your storefront.");
+try{
+ const shop=window.RA_exportShop?.();if(!shop)throw Error("Missing shop");
+ const resp=await fetch("shop-export-template.html",{cache:"no-store"});if(!resp.ok)throw Error("Export template unavailable");
+ const template=await resp.text();
+ if(!template.includes("__SHOP_DATA__"))throw Error("Invalid export template");
+ const encoded=JSON.stringify(shop).replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
+ const html=template.replace("__SHOP_DATA__",encoded);
+ const blob=new Blob([html],{type:"text/html;charset=utf-8"}),link=document.createElement("a");
+ link.href=URL.createObjectURL(blob);link.download=(shop.name||"my-shop").replace(/[^a-z0-9-]+/gi,"-").slice(0,50)+"-rach arla-shop.html".replace(" ","");link.click();
+ setTimeout(()=>URL.revokeObjectURL(link.href),2000);
+ warn("Customer-shop HTML downloaded. It is a static snapshot; new catalog changes require re-exporting.");
+}catch(e){warn("Shop export failed: "+e.message)}
+};
 async function publicShop(){
 const url=new URL(location.href),slug=url.searchParams.get("shop");if(!slug)return false;
 document.title="Shop on Racharla Business Agent";
