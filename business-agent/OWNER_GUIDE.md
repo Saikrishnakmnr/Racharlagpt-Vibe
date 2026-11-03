@@ -77,3 +77,20 @@ Install availability depends on the browser, HTTPS hosting and device.
 - Customer updates require the **hosted** shop, a live connection and the vendor's successful publish action. There is no push notification service.
 - The current shared PWA has a reusable Racharla icon. Individually branded native apps, custom install manifests per merchant, and native WhatsApp product-catalog synchronization are separate future capabilities.
 - The **₹999 Business Agent purchase flow is not currently enabled for real sales**. It must remain closed until provider webhook setup, successful captured payment, entitlement recovery, refund, and public live-domain tests pass.
+
+## Onboarding navigation: after saving business details
+
+- **Step 1 Business:** click **Save & continue to products**. The editor now opens Step 2 automatically; it no longer leaves you wondering what to click.
+- **Step 2 Catalog:** add products/services; click **Next: customer options**.
+- **Step 3 Customer options:** configure pickup, delivery or service enquiries and cash/UPI/QR. Click **Save & continue to preview**.
+- **Step 4 Preview & share:** preview your customer shop. When the verified ₹999 payment workflow is enabled, buy once, then sign in to publish your live shop address and optionally download a standalone customer HTML snapshot.
+
+### Do owners have to keep visiting Vibe?
+
+**To view or operate a static downloaded customer shop:** No continuing Vibe login is required. The file works independently where a user has it, and customers can use its WhatsApp links when online. To update its content, the owner must regenerate and redistribute the new HTML file to customers; there is no auto-sync.
+
+**To maintain a hosted, automatically updating online shop:** The shop owner **does need** to return to the hosted Business Agent owner dashboard (in a browser or via a supported home-screen shortcut) and sign in when changes are needed. They can sign out freely afterward. Customers continue to browse the public link without signing in. New published changes become visible when customers refresh or return online. The browser cache must not be treated as a live inventory source.
+
+**To create a completely independent, editable owner app:** That would require a different downloadable editor package with local data storage, backup/restore, and an authenticated sync mechanism for public updates. The current downloadable customer HTML is not that kind of editor. An installable PWA is a shortcut to the hosted application, not an independent offline cloud updater.
+
+Until the verified purchase checkout is released, the ₹999 button remains intentionally disabled, but the first three setup steps and customer preview can be used free.
