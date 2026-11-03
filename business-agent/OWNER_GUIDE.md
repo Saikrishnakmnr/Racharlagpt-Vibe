@@ -94,3 +94,21 @@ Install availability depends on the browser, HTTPS hosting and device.
 **To create a completely independent, editable owner app:** That would require a different downloadable editor package with local data storage, backup/restore, and an authenticated sync mechanism for public updates. The current downloadable customer HTML is not that kind of editor. An installable PWA is a shortcut to the hosted application, not an independent offline cloud updater.
 
 Until the verified purchase checkout is released, the ₹999 button remains intentionally disabled, but the first three setup steps and customer preview can be used free.
+
+## Standalone vendor editor — independent of Vibe after purchase (Nov 3, 2026)
+
+The customer HTML export and the **owner-editable app** are different products. The independent vendor editor lives in a single `Racharla-Independent-Vendor-App.html` file delivered to an authenticated, active Business Agent license through the `business-agent-download` Edge Function.
+
+1. During signup, enter the **full shop street/area/city address** and WhatsApp number. The hosted API rejects vague/short addresses. The address appears prominently in customer shops, with a Google Maps search link.
+2. Optionally upload a genuine banner/shopfront photo. If none is provided, the customer sees a **designed brand-name banner** (no fake photo or misleading photo from a different shop).
+3. Once payment activation is verified and sales are enabled, click **Download my independent owner app**. It exports the current editable catalog into a standalone HTML editor. It does not contain authentication tokens.
+4. Open that file on the owner's device. The editor works locally without contacting Vibe. It can change business details, prices, photos, stock and customer payment options, and it can export a fresh self-contained customer-shop HTML file. It includes **Backup my editable catalog** and **Restore backup**. Keep backups outside the phone and test restoring them; browser-local data can be cleared.
+5. When items change, the owner **exports a new customer shop file and redistributes/rehosts it**. There is no invisible syncing from the offline editor to existing customer HTML files or previously installed hosted PWAs.
+6. A public link and customer auto-refresh require some form of reachable hosting and an authenticated update/publish mechanism. This may be Vibe hosting or another host chosen by the owner; neither is zero-cost forever by guarantee.
+7. An HTML file opened via a phone's file browser is not a standalone native Android APK or iOS app and may not be PWA-installable from `file://`. Browser storage and file downloads vary by device. This is an HTML owner editor intended to be portable, not a native app-store installation.
+
+### Commercial licensing caveat
+
+The GitHub Vibe repository currently has public visibility. Source embedded in the public repository or previously committed there can be copied. License validation protects our **supported purchase/download channel**, not the intellectual property against deliberate copying. Marketing must not claim unbreakable copy protection.
+
+The paid ₹999 order button stays disabled until real Razorpay capture, recovery and refund tests are complete. Development changes alone do not authorize opening live sales.
