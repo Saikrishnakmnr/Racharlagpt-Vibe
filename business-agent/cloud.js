@@ -36,7 +36,7 @@ if(saved){$("agentLoadShop").hidden=false;$("agentSlug").value=saved.slug;$("age
 const local=window.RA_exportShop?.();const isDemo=!!local?.products?.length&&local.products.every(p=>String(p.id).startsWith("demo-"));if(saved.shop_data&&loadedFor!==session.user.id&&(isDemo||!local?.products?.length)){window.RA_importShop?.(saved.shop_data);loadedFor=session.user.id;}
 }else if(licensed){$("agentShare").textContent="Enter a unique shop address and press Save & publish."}
 warn(licensed?"You own your Business Agent license. Publish your shop or edit your catalog.":r.sales_enabled?"₹999 purchase available. Review the product and refund terms before paying.":"Free preview available. ₹999 purchase will open only after final checkout and recovery tests.")
-}catch(e){status("Account is connected, but the shop service could not be reached: "+e.message);warn("Live sales and hosting are not available while this error persists.")}
+}catch(e){salesEnabled=false;status("Account is connected, but the shop service could not be reached: "+e.message);warn("Live sales and hosting are not available while this error persists.")}
 }
 async function auth(action){
 const email=$("agentEmail").value.trim(),password=$("agentPassword").value;
@@ -67,14 +67,25 @@ async function downloadOwnerEditor(){
 $("agentDownloadOwner").onclick=downloadOwnerEditor;
 $("agentDownloadOwnerPublish").onclick=downloadOwnerEditor;
 $("agentRecover").onclick=async()=>{if(!loggedIn())return warn("Sign in to recover your payment.");if(processing)return;processing=true;try{warn("Checking Razorpay payment records…");const r=await call("recover");warn(r.licensed?"Payment recovered and license active.":"No captured Business Agent purchase found. If charged, contact support with your Razorpay order ID.");await refresh()}catch(e){warn("Recovery failed: "+e.message)}finally{processing=false}};
+function validateVendorCheckout(){
+ const d=window.RA_exportShop?.();
+ if(!d)return {step:"business",reason:"Complete your business details first."};
+ if(!String(d.name||"").trim()||!String(d.address||"").trim()||String(d.address).trim().length<12||!/^\d{8,15}$/.test(String(d.phone||"").replace(/\D/g,"")))return {step:"business",reason:"Complete your shop name, full street address, and WhatsApp number before purchasing."};
+ if(!Array.isArray(d.products)||!d.products.length||d.products.every(p=>String(p.id||"").startsWith("demo-")))return {step:"products",reason:"Add at least one real product or service before purchasing."};
+ if(!d.pickup&&!d.delivery&&!d.appointment)return {step:"settings",reason:"Choose pickup, delivery or appointment enquiries."};
+ if(!d.appointment&&!((d.pickup&&d.cashPickup)||(d.delivery&&d.cashDelivery)||(d.directUpi&&d.upi)||(d.showQr&&d.merchantQr)))return {step:"settings",reason:"Enable at least one valid customer payment preference."};
+ return null;
+}
 window.RA_checkoutRequest=async()=>{
-if(licensed){warn("Your Business Agent license is already active. Continue to publishing.");return}
+if(licensed){warn("Your Business Agent license is already active. Continue to publishing.");window.RA_goStep?.("publish");return}
+const incomplete=validateVendorCheckout();if(incomplete){warn(incomplete.reason);window.RA_goStep?.(incomplete.step);return}
 if(!loggedIn()){warn("Sign in to purchase. Your draft is saved on this device.");return}
 if(!salesEnabled){warn("₹999 checkout is temporarily closed because payment activation and refund testing are not complete. No payment has been taken.");return}
 if(processing)return;
 if(typeof $("agentBuy").onclick==="function")await $("agentBuy").onclick();
 };
 $("agentBuy").onclick=async()=>{
+const incomplete=validateVendorCheckout();if(incomplete){warn(incomplete.reason);window.RA_goStep?.(incomplete.step);return}
 if(processing)return;if(!loggedIn())return warn("Sign in before purchasing.");processing=true;
 try{
 const o=await call("checkout");if(o.already_licensed){await refresh();return}
