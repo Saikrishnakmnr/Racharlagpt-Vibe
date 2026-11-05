@@ -112,3 +112,15 @@ The customer HTML export and the **owner-editable app** are different products. 
 The GitHub Vibe repository currently has public visibility. Source embedded in the public repository or previously committed there can be copied. License validation protects our **supported purchase/download channel**, not the intellectual property against deliberate copying. Marketing must not claim unbreakable copy protection.
 
 The paid ₹999 order button stays disabled until real Razorpay capture, recovery and refund tests are complete. Development changes alone do not authorize opening live sales.
+
+## Nov 5, 2026 — Five-step navigation and purchase checkpoint
+
+The **hosted** Business Agent vendor studio uses these five stages: 1. Business details → 2. Catalog → 3. Customer and payment choices → 4. ₹999 Purchase & Activation → 5. Publish & Share. Saving Stage 1 moves to Stage 2; saving Stage 3 moves to Stage 4. The current stage scrolls into view, supports phone/browser Back and a Previous step control, and keeps draft data in local storage. The customer-preview Back control returns to the vendor studio.
+
+The Stage 4 purchase button has a clear server-derived state, including a visible warning when real payments are not yet enabled. It validates shop identity, street address, WhatsApp number, at least one real catalog item and customer options before requesting Razorpay; missing details lead the owner back to the relevant stage. When the backend eventually enables sales and an eligible user clicks Pay, Razorpay checkout is opened using a server-created ₹999 INR order.
+
+**Payment launch status:** `BUSINESS_AGENT_SALES_ENABLED` remains guarded on the server. The Razorpay webhook registration, capture, license activation, recovery and refund scenario must be tested before unlocking actual payments. A disabled Pay button does not mean the user login is broken.
+
+A static source audit verified syntax for the vendor/editor/cloud/customer-shop JavaScript, found no duplicate DOM IDs or missing cloud element references, and found event handlers for 38 named buttons in the hosted studio. These are structural checks; full phone/browser UI and real transaction end-to-end checks are still outstanding.
+
+The downloaded independent owner editor retains its own four-step navigation and is re-bundled into the licensed-download Edge Function after its browser Back and panel scrolling fixes.
