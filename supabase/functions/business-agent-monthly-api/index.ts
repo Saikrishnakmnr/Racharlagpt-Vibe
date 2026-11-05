@@ -14,7 +14,7 @@ async function db(path:string,init:RequestInit={}){const r=await fetch(U+"/rest/
 const post=(path:string,data:unknown)=>db(path,{method:"POST",headers:{"Prefer":"return=representation"},body:JSON.stringify(data)});
 const patch=(path:string,data:unknown)=>db(path,{method:"PATCH",headers:{"Prefer":"return=representation"},body:JSON.stringify(data)});
 async function user(req:Request){const token=(req.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"");if(!token)throw Error("AUTH");const r=await fetch(U+"/auth/v1/user",{headers:{"apikey":K,Authorization:"Bearer "+token}});if(!r.ok)throw Error("AUTH");const j=await r.json();if(!j.id)throw Error("AUTH");return j}
-const rpAuth=()=>{"Authorization":"Basic "+btoa(RK+":"+RS),"Content-Type":"application/json"};
+const rpAuth=()=>({Authorization:"Basic "+btoa(RK+":"+RS),"Content-Type":"application/json"});
 async function razorpay(path:string,init:RequestInit={}){if(!RK||!RS)throw Error("Payment provider is not configured");const r=await fetch("https://api.razorpay.com/v1/"+path,{...init,headers:{...rpAuth(),...(init.headers||{})}});const j=await r.json();if(!r.ok)throw Error("Payment provider could not complete request");return j}
 async function hmac(message:string){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(RS),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return [...new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(message)))].map(x=>x.toString(16).padStart(2,"0")).join("")}
 function same(a:string,b:string){if(a.length!==b.length)return false;let v=0;for(let i=0;i<a.length;i++)v|=a.charCodeAt(i)^b.charCodeAt(i);return v===0}
