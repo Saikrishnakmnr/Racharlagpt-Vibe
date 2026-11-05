@@ -7,9 +7,9 @@ const $=id=>document.getElementById(id);
 if(!window.supabase||!base||!key){$("accountStatus").textContent="Cloud services unavailable. You can still try the local preview.";return}
 const client=window.supabase.createClient(base,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 const API=base+"/functions/v1/business-agent-api";
-let session=null,licensed=false,saved=null,processing=false,loadedFor=null;
+let session=null,licensed=false,salesEnabled=false,saved=null,processing=false,loadedFor=null;
 function status(s){$("accountStatus").textContent=s}
-function warn(s){$("salesWarning").textContent=s}
+function warn(s){$("salesWarning").textContent=s;if($("checkoutMessage"))$("checkoutMessage").textContent=s}
 async function call(action,data={},requiresAuth=true){let headers={"Content-Type":"application/json","apikey":key};
 if(requiresAuth){let x=(await client.auth.getSession()).data.session;if(!x?.access_token)throw Error("Please sign in first.");headers.Authorization="Bearer "+x.access_token}
 let controller=new AbortController,timeout=setTimeout(()=>controller.abort(),25000);
@@ -20,15 +20,17 @@ async function refresh(){
 const current=(await client.auth.getSession()).data.session;session=current;
 $("agentSignIn").hidden=loggedIn();$("agentSignUp").hidden=loggedIn();$("agentGoogle").hidden=loggedIn();$("agentSignOut").hidden=!loggedIn();
 $("accountFields").hidden=loggedIn();
-licensed=false;saved=null;$("agentLoadShop").hidden=true;updateShopLinks();
+licensed=false;salesEnabled=false;saved=null;$("agentLoadShop").hidden=true;updateShopLinks();
 $("agentBuy").disabled=true;$("agentPublish").disabled=true;$("agentExportHTML").disabled=true;$("agentDownloadOwner").disabled=true;$("agentDownloadOwnerPublish").disabled=true;
-if(!loggedIn()){$("agentSalesState").textContent="Preview is free. Sign in to buy and publish once checkout opens.";status("Try a free preview. Sign in to purchase or publish a permanent shop.");$("agentShare").textContent="A public shop URL requires a verified Business Agent license.";return}
+if(!loggedIn()){$("checkoutMessage").textContent="Sign in to your account to purchase when checkout is released. Your draft remains saved on this device.";$("agentSalesState").textContent="Preview is free. Sign in to buy and publish once checkout opens.";status("Try a free preview. Sign in to purchase or publish a permanent shop.");$("agentShare").textContent="A public shop URL requires a verified Business Agent license.";return}
 status("Checking your purchases for "+(session.user.email||"your account")+"…");
-try{const r=await call("me");licensed=!!r.licensed;saved=r.shop;updateShopLinks();
+try{const r=await call("me");licensed=!!r.licensed;salesEnabled=!!r.sales_enabled;saved=r.shop;updateShopLinks();
 status(licensed?"✓ Business Agent licensed — "+session.user.email:"Signed in as "+session.user.email+" · free preview");
 $("agentSalesState").textContent=licensed?"✓ Licensed: save, publish and manage your hosted shop whenever you sign in.":r.sales_enabled?"Preview complete? Buy ₹999 once to activate publishing and export.":"Your free preview is saved on this device. ₹999 checkout is temporarily disabled until payment and refund verification is complete.";
 $("agentBuy").hidden=licensed;
 $("agentBuy").disabled=!loggedIn()||licensed||!r.sales_enabled;
+$("checkoutContinue").textContent=licensed?"✓ Purchased — continue to publish":salesEnabled?"Pay ₹999 securely with Razorpay":"₹999 checkout not yet open";
+$("checkoutMessage").textContent=licensed?"Your Business Agent license is active. Continue to publish or download your owner app.":salesEnabled?"You can proceed to the secure Razorpay checkout after reviewing your shop.":"The server has not enabled new purchases yet. Your business draft is safe on this device. Please do not attempt an alternative payment.";
 $("agentPublish").disabled=!licensed;$("agentExportHTML").disabled=!licensed;$("agentDownloadOwner").disabled=!licensed;$("agentDownloadOwnerPublish").disabled=!licensed;
 if(saved){$("agentLoadShop").hidden=false;$("agentSlug").value=saved.slug;$("agentVisibility").value=String(!!saved.published);$("agentShare").textContent=saved.published?"Your shop: "+location.origin+location.pathname+"?shop="+encodeURIComponent(saved.slug):"Shop saved privately. Publish when ready.";
 const local=window.RA_exportShop?.();const isDemo=!!local?.products?.length&&local.products.every(p=>String(p.id).startsWith("demo-"));if(saved.shop_data&&loadedFor!==session.user.id&&(isDemo||!local?.products?.length)){window.RA_importShop?.(saved.shop_data);loadedFor=session.user.id;}
@@ -65,6 +67,13 @@ async function downloadOwnerEditor(){
 $("agentDownloadOwner").onclick=downloadOwnerEditor;
 $("agentDownloadOwnerPublish").onclick=downloadOwnerEditor;
 $("agentRecover").onclick=async()=>{if(!loggedIn())return warn("Sign in to recover your payment.");if(processing)return;processing=true;try{warn("Checking Razorpay payment records…");const r=await call("recover");warn(r.licensed?"Payment recovered and license active.":"No captured Business Agent purchase found. If charged, contact support with your Razorpay order ID.");await refresh()}catch(e){warn("Recovery failed: "+e.message)}finally{processing=false}};
+window.RA_checkoutRequest=async()=>{
+if(licensed){warn("Your Business Agent license is already active. Continue to publishing.");return}
+if(!loggedIn()){warn("Sign in to purchase. Your draft is saved on this device.");return}
+if(!salesEnabled){warn("₹999 checkout is temporarily closed because payment activation and refund testing are not complete. No payment has been taken.");return}
+if(processing)return;
+if(typeof $("agentBuy").onclick==="function")await $("agentBuy").onclick();
+};
 $("agentBuy").onclick=async()=>{
 if(processing)return;if(!loggedIn())return warn("Sign in before purchasing.");processing=true;
 try{
