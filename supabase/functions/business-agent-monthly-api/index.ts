@@ -111,16 +111,23 @@ Deno.serve(async req=>{
    const total=cart.total+fee;
    if(!Number.isSafeInteger(total)||total<0||total>1000000000)return err("Invalid order total");
    if(Number(data.expected_total_paise)!==total)return err("Prices or delivery fees changed. Refresh and review your cart.",409);
-   // Basic per-phone throttling prevents repeated accidental taps; customer orders remain provisional until owner confirms.
-   const since=new Date(Date.now()-3600000).toISOString();
-   const duplicates=await db("business_agent_customer_orders?shop_id=eq."+encodeURIComponent(row.id)+"&customer_phone=eq."+encodeURIComponent(phone)+"&created_at=gte."+encodeURIComponent(since)+"&select=id&limit=9");
-   if((duplicates||[]).length>=8)return err("Too many orders. Please contact the seller directly.",429);
-   const inserted=await post("business_agent_customer_orders",{shop_id:row.id,user_id:row.user_id,customer_name:customer,customer_phone:phone,delivery_address:fulfillment==="delivery"?address:"",fulfillment,payment_method:pay,items:cart.items,amount_paise:total,currency:"INR",note,status:"awaiting_confirmation",payment_status:"unverified"});
-   const order=inserted?.[0];if(!order)return err("Could not record order",500);
-   const ref="BA-"+String(order.order_number).padStart(7,"0");
+   const clientToken=clean(data.client_token,50);if(!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(clientToken))return err("Invalid order request. Refresh the shop.",400);
    const fmt=(n:number)=>"₹"+(n/100).toFixed(2);
-   const lines=["Hello "+shop.name+",","Order reference: "+ref,"Customer: "+customer,"Phone: "+phone,"Items:",...cart.items.map((p:any,i:number)=>String(i+1)+". "+p.name+" × "+p.qty+" "+p.unit+" — "+fmt(p.subtotal_paise)),"Items: "+fmt(cart.total),...(fee?["Delivery fee: "+fmt(fee)]:[]),"Estimated total: "+fmt(total),"Fulfilment: "+fulfillment,"Payment choice: "+pay,...(fulfillment==="delivery"?["Delivery address: "+address]:[]),...(note?["Note: "+note]:[]),"Please confirm stock, final amount and order acceptance. No payment has been automatically verified."];
-   return respond({order_ref:ref,whatsapp_url:"https://wa.me/"+shop.phone+"?text="+encodeURIComponent(lines.join("\n")),amount_paise:total,status:"awaiting_confirmation"});
+   function orderResponse(orderNumber:number){
+     const ref="BA-"+String(orderNumber).padStart(7,"0");
+     const lines=["Hello "+shop.name+",","Order reference: "+ref,"Customer: "+customer,"Phone: "+phone,"Items:",...cart.items.map((p:any,i:number)=>String(i+1)+". "+p.name+" × "+p.qty+" "+p.unit+" — "+fmt(p.subtotal_paise)),"Items: "+fmt(cart.total),...(fee?["Delivery fee: "+fmt(fee)]:[]),"Estimated total: "+fmt(total),"Fulfilment: "+fulfillment,"Payment choice: "+pay,...(fulfillment==="delivery"?["Delivery address: "+address]:[]),...(note?["Note: "+note]:[]),"Please confirm stock, final amount and order acceptance. No payment has been automatically verified."];
+     return respond({order_ref:ref,whatsapp_url:"https://wa.me/"+shop.phone+"?text="+encodeURIComponent(lines.join("\n")),amount_paise:total,status:"awaiting_confirmation"});
+   }
+   const prior=await db("business_agent_customer_orders?shop_id=eq."+row.id+"&client_token=eq."+encodeURIComponent(clientToken)+"&select=order_number,amount_paise,customer_phone&limit=1");
+   if(prior?.length){if(prior[0].customer_phone!==phone||Number(prior[0].amount_paise)!==total)return err("Order data has changed. Start a new order.",409);return orderResponse(prior[0].order_number)}
+   const since=new Date(Date.now()-3600000).toISOString();
+   const duplicates=await db("business_agent_customer_orders?shop_id=eq."+row.id+"&customer_phone=eq."+encodeURIComponent(phone)+"&created_at=gte."+encodeURIComponent(since)+"&select=id&limit=9");
+   if((duplicates||[]).length>=8)return err("Too many orders. Please contact the seller directly.",429);
+   let order:any;
+   try{const inserted=await post("business_agent_customer_orders",{shop_id:row.id,user_id:row.user_id,customer_name:customer,customer_phone:phone,delivery_address:fulfillment==="delivery"?address:"",fulfillment,payment_method:pay,items:cart.items,amount_paise:total,currency:"INR",note,status:"awaiting_confirmation",payment_status:"unverified",client_token:clientToken});order=inserted?.[0]}
+   catch(e){if(!String(e).includes("23505"))throw e;const retry=await db("business_agent_customer_orders?shop_id=eq."+row.id+"&client_token=eq."+encodeURIComponent(clientToken)+"&select=order_number,amount_paise,customer_phone&limit=1");if(!retry?.length||retry[0].customer_phone!==phone||Number(retry[0].amount_paise)!==total)throw e;order=retry[0]}
+   if(!order)return err("Could not record order",500);
+   return orderResponse(order.order_number);
   }
   const u=await user(req);
   if(action==="me"){
