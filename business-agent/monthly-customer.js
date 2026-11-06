@@ -1,10 +1,10 @@
 /* Live public storefront: latest pricing + server-validated order IDs + WhatsApp. */
 (()=>{"use strict";const A=window.RBA;if(!A)return;const {$,state:S,call,format,customerNotice}=A;
-let filteredCategory="All",opening=false,pendingWhatsApp="";
+let filteredCategory="All",opening=false,pendingWhatsApp="",orderToken=null;
 const safe=x=>String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const products=()=>Array.isArray(S.customerShop?.products)?S.customerShop.products.filter(x=>x.available!==false&&x.stock!==0):[];
 function showCustomer(shop,slug=null){
- S.customerShop=shop;S.customerSlug=slug;S.cart={};S.lastFetched=Date.now();filteredCategory="All";$("backToEditor").hidden=!!slug;
+ S.customerShop=shop;S.customerSlug=slug;S.cart={};orderToken=null;S.lastFetched=Date.now();filteredCategory="All";$("backToEditor").hidden=!!slug;
  $("vendorApp").hidden=true;$("customerApp").hidden=false;document.title=(shop.name||"My shop")+" — Racharla Shops";
  $("customerName").textContent=shop.name||"Business shop";$("customerTagline").textContent=shop.tagline||shop.about||"Browse and enquire on WhatsApp";
  $("customerAddress").textContent=shop.address||"";$("customerMap").hidden=!shop.address;if(shop.address)$("customerMap").href="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(shop.address);
@@ -37,7 +37,7 @@ function renderProducts(){
  const unit=document.createElement("p");unit.textContent=(item.category||"General")+" · "+(item.unit||"piece");
  const price=document.createElement("strong");price.textContent=format(item.price)+" / "+(item.unit||"piece");
  const b=document.createElement("button");b.className="btn";b.textContent=["photography","salon","wholesale"].includes(S.customerShop.model)?"Enquire":"Add to order";
- b.onclick=()=>{const count=S.cart[item.id]||0;if(item.stock!=null&&count>=item.stock){customerNotice("Only "+item.stock+" available. Please review.");return}S.cart[item.id]=count+1;renderCart();customerNotice("Item selected. Review your cart before sending the order.")};
+ b.onclick=()=>{const count=S.cart[item.id]||0;if(item.stock!=null&&count>=item.stock){customerNotice("Only "+item.stock+" available. Please review.");return}S.cart[item.id]=count+1;orderToken=null;renderCart();customerNotice("Item selected. Review your cart before sending the order.")};
  details.append(title,unit,price,b);card.append(photo,details);$("customerItems").append(card)
  }
 }
@@ -73,7 +73,7 @@ function renderCart(){
  let sum=0;for(const p of list){const qty=S.cart[p.id],line=Math.round(Number(p.price)*100)*qty;sum+=line;
  const row=document.createElement("div");row.className="row between";row.style.margin="9px 0";
  const title=document.createElement("span");title.textContent=p.name+" × "+qty+" · "+format(line/100);
- const minus=document.createElement("button");minus.className="btn ghost";minus.textContent="−";minus.setAttribute("aria-label","Remove one "+p.name);minus.onclick=()=>{S.cart[p.id]=Math.max(0,qty-1);renderCart()};
+ const minus=document.createElement("button");minus.className="btn ghost";minus.textContent="−";minus.setAttribute("aria-label","Remove one "+p.name);minus.onclick=()=>{S.cart[p.id]=Math.max(0,qty-1);orderToken=null;renderCart()};
  row.append(title,minus);parent.append(row)}
  const fee=$("fulfilment").value==="delivery"?Math.round(Number(S.customerShop?.deliveryFee||0)*100):0;$("cartTotal").textContent="Items: "+format(sum/100)+(fee?" + delivery "+format(fee/100):"")+" · Estimated total: "+format((sum+fee)/100)+" · Owner confirms final amount";
 }
@@ -100,7 +100,7 @@ $("placeOrder").onclick=async()=>{
  try{
   const unchanged=await refresh({quiet:true});if(!unchanged)return;
   const orderItems=selected.map(x=>({id:x.id,qty:S.cart[x.id]})),subtotal=selected.reduce((a,p)=>a+Math.round(Number(p.price)*100)*S.cart[p.id],0);const total=subtotal+($("fulfilment").value==="delivery"?Math.round(Number(S.customerShop?.deliveryFee||0)*100):0);
-  const response=await call("order",{slug:S.customerSlug,customer_name:name,customer_phone:phone,delivery_address:$("deliveryAddress").value.trim(),fulfillment,payment_method:method,items:orderItems,expected_total_paise:total,note:$("buyerNote").value.trim(),consent:true},false);
+  const response=await call("order",{slug:S.customerSlug,customer_name:name,customer_phone:phone,delivery_address:$("deliveryAddress").value.trim(),fulfillment,payment_method:method,items:orderItems,expected_total_paise:total,note:$("buyerNote").value.trim(),consent:true,client_token:orderToken||(orderToken=crypto.randomUUID())},false);
   pendingWhatsApp=response.whatsapp_url;
   if(!/^https:\/\/wa\.me\/[0-9]+\?text=/.test(pendingWhatsApp))throw Error("Order recorded but WhatsApp link unavailable");
   customerNotice("Order "+response.order_ref+" created. Opening WhatsApp — tap Send to deliver the order to the shop. If WhatsApp doesn't open, tap Open WhatsApp again.");
