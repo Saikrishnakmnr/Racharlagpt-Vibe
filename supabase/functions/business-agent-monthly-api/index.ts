@@ -141,6 +141,7 @@ Deno.serve(async req=>{
    const price=await pricing();return respond({licensed:ent.active,paid_through:ent.paid_through,legacy:ent.legacy,sales_enabled:Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")==="true",shop:shops?.[0]||null,user_email:u.email||null,price_paise:price.monthly_amount_paise,pricing:price,renewal_mode:"manual_prepaid"});
   }
   if(action==="checkout"){
+   const ops=await operations();const past=await bought(u.id);const priorCustomer=past.some(p=>p.status==="captured");if(!priorCustomer&&!ops.new_enrollment_enabled)return err("New shop registrations are temporarily paused. Existing paid shops can continue.",503);if(priorCustomer&&!ops.renewal_enabled)return err("Monthly renewals are temporarily paused. Already-paid shops continue until expiry.",503);
    if(Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")!=="true")return err("Monthly checkout is being tested. No payment is being taken.",503);
    if(!RK||!RS)return err("Checkout configuration unavailable",503);
    await recover(u.id);
