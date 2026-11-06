@@ -138,7 +138,7 @@ Deno.serve(async req=>{
   if(action==="me"){
    const ent=await entitlement(u.id);
    const shops=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,slug,published,shop_data&limit=1");
-   const price=await pricing();return respond({licensed:ent.active,paid_through:ent.paid_through,legacy:ent.legacy,sales_enabled:Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")==="true",shop:shops?.[0]||null,user_email:u.email||null,price_paise:price.monthly_amount_paise,pricing:price,renewal_mode:"manual_prepaid"});
+   const price=await pricing(),ops=await operations();const cutoff=ent.paid_through&&Date.parse(ent.paid_through)>0?new Date(Date.parse(ent.paid_through)+Number(ops.retention_days)*86400000).toISOString():null;return respond({licensed:ent.active,paid_through:ent.paid_through,legacy:ent.legacy,requires_new_shop:ent.requires_new_shop,retention_deadline:cutoff,retention_days:ops.retention_days,operations:{new_enrollment_enabled:ops.new_enrollment_enabled,renewal_enabled:ops.renewal_enabled,public_orders_enabled:ops.public_orders_enabled,maintenance_message:ops.maintenance_message},sales_enabled:Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")==="true",shop:shops?.[0]||null,user_email:u.email||null,price_paise:price.monthly_amount_paise,pricing:price,renewal_mode:"manual_prepaid"});
   }
   if(action==="checkout"){
    const ops=await operations();const past=await bought(u.id);const priorCustomer=past.some(p=>p.status==="captured");if(!priorCustomer&&!ops.new_enrollment_enabled)return err("New shop registrations are temporarily paused. Existing paid shops can continue.",503);if(priorCustomer&&!ops.renewal_enabled)return err("Monthly renewals are temporarily paused. Already-paid shops continue until expiry.",503);
