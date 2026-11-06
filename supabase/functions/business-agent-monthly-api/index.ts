@@ -27,7 +27,7 @@ async function entitlement(uid:string){
  return {active:!!legacy?.length||!!(until&&new Date(until).getTime()>Date.now()),paid_through:until,legacy:!!legacy?.length}
 }
 async function pricing(){const rows=await db("business_agent_pricing?id=eq.1&select=monthly_amount_paise,reference_amount_paise,reference_kind,offer_label,offer_details,offer_ends_at,updated_at&limit=1");const x=rows?.[0];if(!x)throw Error("Pricing configuration missing");const isOffer=!!x.offer_label&&(!x.offer_ends_at||Date.parse(x.offer_ends_at)>Date.now());return {...x,offer_active:isOffer,monthly_amount_paise:Number(x.monthly_amount_paise),reference_amount_paise:Number(x.reference_amount_paise)}}
-async function bought(uid:string){return db("business_agent_monthly_purchases?user_id=eq."+encodeURIComponent(uid)+"&select=id,user_id,razorpay_order_id,razorpay_payment_id,status,created_at,period_end&order=created_at.desc&limit=30")}
+async function bought(uid:string){return db("business_agent_monthly_purchases?user_id=eq."+encodeURIComponent(uid)+"&select=id,user_id,razorpay_order_id,razorpay_payment_id,amount_paise,status,created_at,period_end&order=created_at.desc&limit=30")}
 async function activate(order:string,payment:string){
  const purchases=await db("business_agent_monthly_purchases?razorpay_order_id=eq."+encodeURIComponent(order)+"&select=*&limit=1");const p=purchases?.[0];if(!p)throw Error("Order does not belong to Business Agent");
  const x=await razorpay("payments/"+encodeURIComponent(payment));
