@@ -56,7 +56,7 @@ function fillPayments(){
  if(s.showQr&&s.merchantQr)opts.push(["qr","Pay with owner's QR after confirmation"]);
  if(which==="appointment")opts.push(["confirm","Discuss payment with business"]);
  const el=$("paymentMethod");el.replaceChildren();for(const [value,label]of opts){const o=document.createElement("option");o.value=value;o.textContent=label;el.append(o)}
- $("deliveryAddressWrap").hidden=which!=="delivery";$("placeOrder").disabled=!opts.length;
+ $("deliveryAddressWrap").hidden=which!=="delivery";$("placeOrder").disabled=!opts.length;renderCart();
  showPaymentInfo();
 }
 function showPaymentInfo(){
@@ -75,7 +75,7 @@ function renderCart(){
  const title=document.createElement("span");title.textContent=p.name+" × "+qty+" · "+format(line/100);
  const minus=document.createElement("button");minus.className="btn ghost";minus.textContent="−";minus.setAttribute("aria-label","Remove one "+p.name);minus.onclick=()=>{S.cart[p.id]=Math.max(0,qty-1);renderCart()};
  row.append(title,minus);parent.append(row)}
- $("cartTotal").textContent="Estimated items: "+format(sum/100)+" · Final total confirmed by shop";
+ const fee=$("fulfilment").value==="delivery"?Math.round(Number(S.customerShop?.deliveryFee||0)*100):0;$("cartTotal").textContent="Items: "+format(sum/100)+(fee?" + delivery "+format(fee/100):"")+" · Estimated total: "+format((sum+fee)/100)+" · Owner confirms final amount";
 }
 async function refresh({quiet=false}={}){
  if(!S.customerSlug)return true;
@@ -98,7 +98,7 @@ $("placeOrder").onclick=async()=>{
  opening=true;$("placeOrder").disabled=true;
  try{
   const unchanged=await refresh({quiet:true});if(!unchanged)return;
-  const orderItems=selected.map(x=>({id:x.id,qty:S.cart[x.id]})),total=selected.reduce((a,p)=>a+Math.round(Number(p.price)*100)*S.cart[p.id],0);
+  const orderItems=selected.map(x=>({id:x.id,qty:S.cart[x.id]})),subtotal=selected.reduce((a,p)=>a+Math.round(Number(p.price)*100)*S.cart[p.id],0);const total=subtotal+($("fulfilment").value==="delivery"?Math.round(Number(S.customerShop?.deliveryFee||0)*100):0);
   const response=await call("order",{slug:S.customerSlug,customer_name:name,customer_phone:phone,delivery_address:$("deliveryAddress").value.trim(),fulfillment,payment_method:method,items:orderItems,expected_total_paise:total,note:$("buyerNote").value.trim(),consent:true},false);
   pendingWhatsApp=response.whatsapp_url;
   if(!/^https:\/\/wa\.me\/[0-9]+\?text=/.test(pendingWhatsApp))throw Error("Order recorded but WhatsApp link unavailable");
