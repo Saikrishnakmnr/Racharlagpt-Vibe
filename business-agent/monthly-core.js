@@ -10,7 +10,7 @@ const format=v=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"})
 const phone=p=>String(p||"").replace(/\D/g,"");
 const slug=s=>String(s||"").trim().toLowerCase().replace(/[^a-z0-9-]/g,"-").replace(/^-+|-+$/g,"").slice(0,70);
 function read(k){try{const x=JSON.parse(localStorage.getItem(k)||"null");return x&&Array.isArray(x.products)?{...blank(),...x}:null}catch{return null}}
-const state={ownerId:null,shop:read(guestKey)||blank(),session:null,entitled:false,legacy:false,paidThrough:null,salesEnabled:false,saved:null,tab:"overview",customerSlug:null,customerShop:null,cart:{},lastFetched:0,paying:false,publishing:false};
+const state={ownerId:null,shop:read(guestKey)||blank(),session:null,entitled:false,legacy:false,paidThrough:null,salesEnabled:false,pricing:{monthly_amount_paise:9900,reference_amount_paise:49900,reference_kind:"planned",offer_label:"Launch offer",offer_details:"Introductory offer for shop owners.",offer_active:true},saved:null,tab:"overview",customerSlug:null,customerShop:null,cart:{},lastFetched:0,paying:false,publishing:false};
 function notice(s,good=false){const el=$("notice");if(el){el.textContent=s;el.classList.toggle("success",!!good)}}
 function customerNotice(s){const el=$("customerOrderStatus");if(el)el.textContent=s}
 function persist(){
@@ -42,12 +42,14 @@ if($("vendorApp")){
  addEventListener("popstate",e=>{if(state.customerSlug)return;if($("customerApp")&&!$("customerApp").hidden){$("customerApp").hidden=true;$("vendorApp").hidden=false}navigate(e.state?.rba||location.hash.slice(1)||"overview",true)});
 }
 function getPublicLink(){return state.saved?.published?location.origin+location.pathname+"?shop="+encodeURIComponent(state.saved.slug):""}
+function displayPricing(){const p=state.pricing||{};const amount=Number(p.monthly_amount_paise)||9900;const fmt=n=>"₹"+(n/100).toLocaleString("en-IN",{maximumFractionDigits:2});if($("billingAmount"))$("billingAmount").textContent=fmt(amount);if($("payBtnPrice"))$("payBtnPrice").textContent=fmt(amount);if($("billingOfferLabel"))$("billingOfferLabel").textContent=p.offer_active?(p.offer_label||"Launch offer"):"Current monthly rate";if($("billingOfferDetails"))$("billingOfferDetails").textContent=p.offer_active?(p.offer_details||"Introductory offer for shop owners."):"Current monthly rate";const show=!!p.offer_active&&p.reference_kind!=="none"&&Number(p.reference_amount_paise)>amount;if($("billingCompare"))$("billingCompare").hidden=!show;if(show){$("billingReference").textContent=fmt(Number(p.reference_amount_paise));$("billingCompareKind").textContent=p.reference_kind==="former"?"Genuine former selling price":"Planned regular rate — not a former selling price"}}
+async function refreshPricing(){try{const r=await call("pricing",{},false);if(r.pricing&&Number.isInteger(r.pricing.monthly_amount_paise)){state.pricing=r.pricing;displayPricing();displayPlan()}}catch(e){/* The server must always verify actual checkout price. */}}
 function displayPlan(){
  const end=state.paidThrough?new Date(state.paidThrough):null;
- const text=state.legacy?"Your earlier one-time purchase remains honored":state.entitled?"Active through "+(end?.toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})||"your prepaid period"):"No active monthly access — ₹99 per prepaid month";
+ const monthly="₹"+((Number(state.pricing?.monthly_amount_paise)||9900)/100).toLocaleString("en-IN",{maximumFractionDigits:2});const text=state.legacy?"Your earlier one-time purchase remains honored":state.entitled?"Active through "+(end?.toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})||"your prepaid period"):"No active monthly access — "+monthly+" per prepaid month";
  $("accountSummary").textContent=state.session?.user?"Signed in as "+state.session.user.email+" · "+text:"Sign in to publish and manage your shop.";
  $("billingExpiry").textContent=text;$("planSummary").textContent=text;
- $("payBtn").disabled=state.legacy;$("payBtn").textContent=state.legacy?"Existing purchase recognized":state.entitled?"Extend by 1 month · ₹99":"Activate 1 month · ₹99";
+ $("payBtn").disabled=state.legacy;$("payBtn").textContent=state.legacy?"Existing purchase recognized":state.entitled?"Extend by 1 month · "+monthly:"Activate 1 month · "+monthly;
  $("publishStatus").textContent=state.entitled?"Your paid shop is active. Publish your current catalog when ready.":"Your shop will be paused until you activate or renew a paid month. Your saved data is retained.";
  $("publicLink").value=getPublicLink();
 }
@@ -66,7 +68,7 @@ async function refreshAccount(){
  }
  try{
   const r=await call("me");
-  state.entitled=!!r.licensed;state.legacy=!!r.legacy;state.paidThrough=r.paid_through;state.salesEnabled=!!r.sales_enabled;state.saved=r.shop||null;
+  state.entitled=!!r.licensed;state.legacy=!!r.legacy;state.paidThrough=r.paid_through;state.salesEnabled=!!r.sales_enabled;if(r.pricing)state.pricing=r.pricing;displayPricing();state.saved=r.shop||null;
   if(state.saved?.shop_data){const local=read(userKey(uid));if(!local?.name||!local?.products?.length){state.shop={...blank(),...state.saved.shop_data};persist()}}
   window.RBA?.renderOwner?.();displayPlan();notice(state.entitled?"Your online shop access is active. Edit and republish for current prices.":"Free shop preview available. Your data stays on this account for renewal.",state.entitled);
  }catch(e){state.entitled=false;state.salesEnabled=false;displayPlan();notice("Cannot check plan: "+e.message)}
@@ -93,5 +95,5 @@ async function compress(file,dimension=700,quality=.7){
   const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));canvas.getContext("2d").drawImage(image,0,0,canvas.width,canvas.height);return canvas.toDataURL("image/jpeg",quality);
  }finally{URL.revokeObjectURL(src)}
 }
-window.RBA={$, $$,state,blank,format,phone,slug,read,persist,call,notice,customerNotice,navigate,displayPlan,refreshAccount,authHandlers,compress,client,base,key,getPublicLink};
+window.RBA={$, $$,state,blank,format,phone,slug,read,persist,call,notice,customerNotice,navigate,displayPlan,refreshAccount,refreshPricing,displayPricing,authHandlers,compress,client,base,key,getPublicLink};
 })();
