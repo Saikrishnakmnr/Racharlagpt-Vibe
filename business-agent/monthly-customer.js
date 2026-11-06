@@ -1,6 +1,6 @@
 /* Live public storefront: latest pricing + server-validated order IDs + WhatsApp. */
 (()=>{"use strict";const A=window.RBA;if(!A)return;const {$,state:S,call,format,customerNotice}=A;
-let filteredCategory="All",opening=false,pendingWhatsApp="",orderToken=null;
+let filteredCategory="All",opening=false,pendingWhatsApp="",orderToken=null;let deferredInstall=null,installed=false;
 const safe=x=>String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const products=()=>Array.isArray(S.customerShop?.products)?S.customerShop.products.filter(x=>x.available!==false&&x.stock!==0):[];
 function showCustomer(shop,slug=null){
@@ -14,7 +14,7 @@ function showCustomer(shop,slug=null){
    cover.replaceChildren();const img=document.createElement("img");img.src=shop.bannerImage;img.alt="Shop banner";img.className="store-cover";cover.append(img)
  }else{cover.replaceChildren();const name=document.createElement("strong");name.textContent=shop.name||"Your Shop";cover.append("✦ ",name)}
  renderProducts();renderFulfilment();renderCart();$("paymentHint").hidden=true;
- customerNotice(slug?"Latest online catalog loaded. Shop owner confirms the final order.":"Preview mode: no order will be submitted. Sign in and publish to enable WhatsApp orders.");
+ customerNotice(slug?"Latest online catalog loaded. Shop owner confirms the final order.":"Preview mode: no order will be submitted. Sign in and publish to enable WhatsApp orders.");showInstallBanner();
  if(slug)try{localStorage.setItem("rba_last_customer_shop",slug)}catch{}
  window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -113,7 +113,24 @@ $("placeOrder").insertAdjacentElement("afterend",fallbackBtn);
 const oldNotice=customerNotice;
 function showFallback(){fallbackBtn.hidden=!pendingWhatsApp}
 const observer=new MutationObserver(showFallback);observer.observe($("customerOrderStatus"),{childList:true,characterData:true,subtree:true});
-$("customerInstall").onclick=()=>{customerNotice(/iPhone|iPad|iPod/.test(navigator.userAgent)?"In Safari tap Share → Add to Home Screen.":"Open your browser menu and choose Install app or Add to Home Screen. Customers may install the shared Racharla Shops app.")};
+function standalone(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
+function showInstallBanner(){
+ const banner=$("customerInstallBanner");if(!S.customerSlug||standalone()||installed){banner.hidden=true;return}
+ let dismissed=0;try{dismissed=Number(localStorage.getItem("rba_install_dismiss_"+S.customerSlug)||0)}catch{}
+ banner.hidden=!!(dismissed&&Date.now()-dismissed<30*86400000);
+}
+async function installClick(){
+ if(standalone()||installed){customerNotice("Racharla Shops is already on your home screen.");return}
+ if(deferredInstall){
+  const p=deferredInstall;deferredInstall=null;try{await p.prompt();const choice=await p.userChoice;if(choice?.outcome==="accepted"){$("customerInstallBanner").hidden=true;customerNotice("Install accepted. Open your shop from the home screen.");return}}catch{}
+ }
+ customerNotice(/iPhone|iPad|iPod/i.test(navigator.userAgent)?"In Safari, tap Share → Add to Home Screen.":"Open your browser menu and choose Install app or Add to Home Screen. The shared Racharla Shops app remembers the last shop you opened.");
+}
+$("customerInstall").onclick=installClick;
+$("installBannerAction").onclick=installClick;
+$("installBannerDismiss").onclick=()=>{if(S.customerSlug)try{localStorage.setItem("rba_install_dismiss_"+S.customerSlug,String(Date.now()))}catch{}$("customerInstallBanner").hidden=true};
+addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstall=e;showInstallBanner()});
+addEventListener("appinstalled",()=>{installed=true;deferredInstall=null;$("customerInstallBanner").hidden=true});
 addEventListener("focus",()=>{if(S.customerSlug&&Date.now()-S.lastFetched>45000)refresh({quiet:true})});
 A.initCustomer=async()=>{const u=new URL(location.href);let slug=u.searchParams.get("shop");if(!slug&&u.searchParams.get("launch")==="shop")try{slug=localStorage.getItem("rba_last_customer_shop")}catch{}
  if(!slug)return false;if(!/^[a-z0-9-]{3,70}$/.test(slug)){customerNotice("Invalid shop link.");return true}
