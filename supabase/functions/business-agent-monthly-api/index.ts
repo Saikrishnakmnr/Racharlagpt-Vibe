@@ -47,7 +47,7 @@ async function recover(uid:string){
 async function shopForSlug(s:string){
  const rows=await db("business_agent_shops?slug=eq."+encodeURIComponent(s)+"&published=eq.true&select=id,user_id,slug,shop_data&limit=1");
  const shop=rows?.[0];if(!shop)return null;
- const license=await entitlement(shop.user_id);if(!license.active)return null;return shop;
+ const license=await entitlement(shop.user_id);if(!license.active||license.requires_new_shop)return null;return shop;
 }
 function normalizeShop(d:any,ownerId:string){if(!d||typeof d!=="object"||Array.isArray(d))throw Error("Invalid shop data");
  const name=clean(d.name,90);if(name.length<2)throw Error("Enter your business name");
@@ -166,6 +166,7 @@ Deno.serve(async req=>{
   }
   if(action==="save"){
    const ent=await entitlement(u.id);if(!ent.active)return err("Renew your monthly plan to publish changes",403);
+   if(ent.requires_new_shop&&data.restart_acknowledged!==true)return err("Your retention grace period ended. Back up your old catalog and confirm starting a fresh shop before publishing.",409);
    const shop=normalizeShop(data.shop,u.id);
    const s=slug(data.slug||shop.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""));
    if(!/^[a-z0-9-]{3,70}$/.test(s))return err("Choose a valid URL name");
@@ -173,6 +174,7 @@ Deno.serve(async req=>{
    const published=data.published===true;
    if(own?.length)await patch("business_agent_shops?id=eq."+encodeURIComponent(own[0].id)+"&user_id=eq."+encodeURIComponent(u.id),{slug:s,shop_data:shop,published,updated_at:new Date().toISOString()});
    else await post("business_agent_shops",{user_id:u.id,slug:s,shop_data:shop,published});
+   if(ent.requires_new_shop)await patch("business_agent_monthly_accounts?user_id=eq."+encodeURIComponent(u.id),{requires_new_shop:false,updated_at:new Date().toISOString()});
    return respond({ok:true,slug:s,published});
   }
   if(action==="orders"){
