@@ -10,7 +10,7 @@ const format=v=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"})
 const phone=p=>String(p||"").replace(/\D/g,"");
 const slug=s=>String(s||"").trim().toLowerCase().replace(/[^a-z0-9-]/g,"-").replace(/^-+|-+$/g,"").slice(0,70);
 function read(k){try{const x=JSON.parse(localStorage.getItem(k)||"null");return x&&Array.isArray(x.products)?{...blank(),...x}:null}catch{return null}}
-const state={ownerId:null,shop:read(guestKey)||blank(),session:null,entitled:false,legacy:false,paidThrough:null,salesEnabled:false,pricing:{monthly_amount_paise:9900,reference_amount_paise:49900,reference_kind:"planned",offer_label:"Launch offer",offer_details:"Introductory offer for shop owners.",offer_active:true},saved:null,retentionDeadline:null,retentionDays:60,restartRequired:false,operations:null,tab:"overview",customerSlug:null,customerShop:null,cart:{},lastFetched:0,paying:false,publishing:false};
+const state={ownerId:null,shop:read(guestKey)||blank(),session:null,entitled:false,legacy:false,paidThrough:null,salesEnabled:false,pricing:{monthly_amount_paise:9900,reference_amount_paise:49900,reference_kind:"planned",offer_label:"Launch offer",offer_details:"Introductory offer for shop owners.",offer_active:true},saved:null,retentionDeadline:null,retentionDays:60,restartRequired:false,restartPrepared:false,operations:null,tab:"overview",customerSlug:null,customerShop:null,cart:{},lastFetched:0,paying:false,publishing:false};
 function notice(s,good=false){const el=$("notice");if(el){el.textContent=s;el.classList.toggle("success",!!good)}}
 function customerNotice(s){const el=$("customerOrderStatus");if(el)el.textContent=s}
 function persist(){
@@ -51,7 +51,7 @@ function displayRetention(){
  else if(state.restartRequired){el.textContent="Your earlier catalog retention window has ended. A fresh shop catalog is required for new activation."}
  else if(!state.paidThrough||Date.parse(state.paidThrough)<0){el.textContent="Your first month begins when your monthly payment activates."}
  else {const until=Date.parse(state.paidThrough),now=Date.now(),deadline=state.retentionDeadline?Date.parse(state.retentionDeadline):until+state.retentionDays*86400000;el.textContent=until>now?"Active until "+new Date(until).toLocaleDateString("en-IN")+". Renew anytime to extend one month.":now<deadline?"Shop paused. Renew within "+Math.max(1,Math.ceil((deadline-now)/86400000))+" day(s), by "+new Date(deadline).toLocaleDateString("en-IN")+", to continue with the same shop.":"Retention window ended. Renewing will require a new catalog."}
- const op=state.operations;const newSales=!op?.new_enrollment_enabled,renewals=!op?.renewal_enabled;maint.hidden=!(newSales||renewals);if(!maint.hidden)maint.textContent=(newSales?"New enrollments are paused. ":"")+(renewals?"Renewals are paused. ":"")+(op?.maintenance_message||"Please try later.");
+ const cutoffReached=!!(state.retentionDeadline&&Date.parse(state.retentionDeadline)<Date.now()&&!state.legacy);$("restartShop").hidden=!(state.restartRequired||cutoffReached);const op=state.operations;const newSales=!op?.new_enrollment_enabled,renewals=!op?.renewal_enabled;maint.hidden=!(newSales||renewals);if(!maint.hidden)maint.textContent=(newSales?"New enrollments are paused. ":"")+(renewals?"Renewals are paused. ":"")+(op?.maintenance_message||"Please try later.");
 }
 function displayPlan(){
  const end=state.paidThrough?new Date(state.paidThrough):null;
