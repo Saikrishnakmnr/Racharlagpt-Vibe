@@ -23,6 +23,26 @@ For **₹99 paid in advance**, you receive one calendar month of online shop hos
 Your public link looks like:
 `https://vibe.racharlagpt.in/business-agent/monthly.html?shop=my-shop`
 
+## Same shop name, different customer links
+
+Many merchants may legitimately use the same business name, such as **SRR**. Business names are not reserved globally. Each shop **website URL** must be unique.
+
+- First shop: `?shop=srr`
+- Second merchant: `?shop=srr-kirana`
+- Third merchant: `?shop=srr-general`
+
+At Publish, enter a unique web address name. The app checks whether it is available and suggests alternatives when it is taken. Never use another owner's login; each merchant manages their own account, catalog, shop photos and orders.
+
+## Inactive catalog cleanup
+
+- After your prepaid month expires, your customer shop stops receiving new online orders.
+- Renew within **60 days** to keep using the same hosted catalog.
+- If you do not renew before the grace ends, a new catalog may be required on reactivation.
+- To free **your expired hosting storage** after the grace, open Billing → **Back up my catalog** → **Request deletion of expired catalog & photos**. Read the confirmation carefully and type the required phrase.
+- You have **seven days to cancel** the request. After that, an administrator can review and execute it.
+- Deletion removes your old hosted catalog and its uploaded images but not billing receipts or customer-order history. The JSON backup lists image URLs, not a copy of the image files; keep the original images yourself.
+- Merely missing a renewal does not immediately trigger automatic deletion. The current cleanup service is opt-in; administrators must still review each request.
+
 ## Daily shop management
 
 - Open your owner dashboard on your phone; sign in with the same account.
