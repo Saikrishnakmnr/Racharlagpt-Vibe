@@ -11,7 +11,7 @@ Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers});
  if(req.method!=="POST")return output({error:"POST required"},405);
  if(req.headers.get("Origin")&&req.headers.get("Origin")!==origin)return output({error:"Invalid origin"},403);
- if(!ADMIN||ADMIN.length<20||!K||!U)return output({error:"Admin pricing is not configured"},503);
+ if(!ADMIN||!K||!U)return output({error:"Admin pricing is not configured"},503);
  if(!safe(req.headers.get("x-admin-token")||"",ADMIN))return output({error:"Administrator authentication required"},401);
  let body:any;try{const raw=await req.text();if(raw.length>12000)return output({error:"Payload too large"},413);body=JSON.parse(raw)}catch{return output({error:"Invalid JSON"})}
  try{
