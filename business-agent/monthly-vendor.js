@@ -119,8 +119,8 @@ $("publishBtn").onclick=async()=>{
   draft.bannerImage=await upload(draft.bannerImage,"cover",4000000);
   draft.merchantQr=await upload(draft.merchantQr,"qr",1500000);
   for(const p of draft.products)p.image=await upload(p.image,"product",1500000);
-  const r=await call("save",{shop:draft,slug:name,published:$("visibility").value==="true"});
-  const older=S.saved?.shop_data;S.shop=draft;persist();S.saved={slug:r.slug,published:r.published,shop_data:draft};A.displayPlan();renderCatalogSync();try{await cleanupUnusedPhotos(older,draft)}catch(e){/* A successful publish must not fail because cleanup is delayed. */}
+  if(S.restartRequired&&!S.restartPrepared)throw Error("Your previous shop retention window ended. Back up your catalog, then choose Start fresh shop before publishing.");const r=await call("save",{shop:draft,slug:name,published:$("visibility").value==="true",restart_acknowledged:!!S.restartPrepared});
+  const older=S.saved?.shop_data;S.shop=draft;persist();S.saved={slug:r.slug,published:r.published,shop_data:draft};S.restartRequired=false;S.restartPrepared=false;A.displayPlan();renderCatalogSync();try{await cleanupUnusedPhotos(older,draft)}catch(e){/* A successful publish must not fail because cleanup is delayed. */}
   notice(r.published?"Your updated shop is published. Share the link!":"Your shop is saved privately.",true);
  }catch(e){notice("Cannot publish: "+e.message)}
  finally{S.publishing=false;$("publishBtn").disabled=false}
