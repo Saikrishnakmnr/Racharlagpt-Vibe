@@ -95,6 +95,7 @@ Deno.serve(async req=>{
    const shop=await shopForSlug(s);return shop?respond({slug:s,shop:shop.shop_data}):err("Shop unavailable or awaiting renewal",404);
   }
   if(action==="order"){
+   const ops=await operations();if(!ops.public_orders_enabled)return err("Online orders are temporarily paused. Please contact the shop directly.",503);
    if(!data.consent)return err("Customer consent required for order details",400);
    const s=slug(data.slug);if(!/^[a-z0-9-]{3,70}$/.test(s))return err("Invalid shop");
    const row=await shopForSlug(s);if(!row)return err("Shop unavailable or awaiting renewal",404);
