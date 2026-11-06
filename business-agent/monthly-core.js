@@ -31,7 +31,7 @@ function navigate(s,fromHistory=false){
  state.tab=s;
  $$("[data-section]").forEach(el=>el.hidden=el.dataset.section!==s);
  $$("[data-tab]").forEach(el=>{el.classList.toggle("active",el.dataset.tab===s);el.setAttribute("aria-current",el.dataset.tab===s?"step":"false")});
- const names={overview:"Your business, beautifully online.",business:"Business details",products:"Products & services",settings:"Customer choices",billing:"₹99 monthly access",publish:"Publish your shop",orders:"Customer orders"};
+ const names={overview:"Your business, beautifully online.",business:"Business details",products:"Products & services",settings:"Customer choices",billing:"Monthly shop access",publish:"Publish your shop",orders:"Customer orders"};
  $("pageTitle").textContent=names[s];$("backStep").hidden=s==="overview";
  if(s==="orders"&&typeof window.RBA?.loadOrders==="function")window.RBA.loadOrders();
  const section=document.querySelector('[data-section="'+s+'"]');section?.scrollIntoView({behavior:"smooth",block:"start"});
