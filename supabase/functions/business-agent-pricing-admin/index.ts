@@ -15,6 +15,20 @@ Deno.serve(async req=>{
  if(!safe(req.headers.get("x-admin-token")||"",ADMIN))return output({error:"Administrator authentication required"},401);
  let body:any;try{const raw=await req.text();if(raw.length>12000)return output({error:"Payload too large"},413);body=JSON.parse(raw)}catch{return output({error:"Invalid JSON"})}
  try{
+  if(body.action==="operations_get"||body.action==="operations_update"){
+   const rows=await db("business_agent_operations?id=eq.1&select=*");const current=rows?.[0];if(!current)return output({error:"Operations settings unavailable"},503);
+   if(body.action==="operations_get")return output({operations:current});
+   const retention=Number(body.retention_days),message=String(body.maintenance_message||"").trim();
+   if(!Number.isInteger(retention)||retention<30||retention>365)return output({error:"Retention must be 30 to 365 days"},400);
+   if(message.length<10||message.length>280)return output({error:"Maintenance message must be 10–280 characters"},400);
+   const enabled=["new_enrollment_enabled","renewal_enabled","public_orders_enabled"];
+   if(enabled.some(k=>typeof body[k]!=="boolean"))return output({error:"All availability switches must be true or false"},400);
+   const changes:any={retention_days:retention,maintenance_message:message,updated_by:"pricing-admin-token",updated_at:new Date().toISOString()};
+   for(const k of enabled)changes[k]=body[k];
+   const result=await db("business_agent_operations?id=eq.1","PATCH",changes);
+   if(!result?.length)return output({error:"Could not update operations"},503);
+   return output({ok:true,operations:result[0]});
+  }
   const records=await db("business_agent_pricing?id=eq.1&select="+fields);const current=records?.[0];if(!current)return output({error:"Pricing record missing"},503);
   if(body.action==="get")return output({pricing:current});
   if(body.action!=="update")return output({error:"Unknown action"},404);
