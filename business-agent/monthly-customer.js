@@ -7,7 +7,7 @@ function showCustomer(shop,slug=null){
  S.customerShop=shop;S.customerSlug=slug;S.cart={};orderToken=null;document.body.dataset.shopModel=String(shop.model||"general");S.lastFetched=Date.now();filteredCategory="All";$("backToEditor").hidden=!!slug;
  $("vendorApp").hidden=true;$("customerApp").hidden=false;document.title=(shop.name||"My shop")+" — Racharla Shops";
  $("customerName").textContent=shop.name||"Business shop";$("customerTagline").textContent=shop.tagline||shop.about||"Browse and enquire on WhatsApp";
- $("customerAddress").textContent=shop.address||"";$("customerMap").hidden=!shop.address;if(shop.address)$("customerMap").href="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(shop.address);
+ $("customerAddress").textContent=shop.address||"";const waPhone=String(shop.phone||"").replace(/\D/g,"");const contact=$("customerContact");contact.hidden=waPhone.length<8||waPhone.length>15;if(!contact.hidden)contact.href="https://wa.me/"+waPhone+"?text="+encodeURIComponent("Hello "+(shop.name||"Shop")+", I would like to enquire about your products and availability.");$("customerMap").hidden=!shop.address;if(shop.address)$("customerMap").href="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(shop.address);
  $("customerOffer").hidden=!shop.offerText;$("customerOffer").textContent=shop.offerText||"";
  const cover=$("customerBanner");
  if(typeof shop.bannerImage==="string"&&/^(https:\/\/|data:image\/(jpeg|png|webp);base64,)/.test(shop.bannerImage)){
