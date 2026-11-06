@@ -153,12 +153,42 @@ $("catalogPublishNow").onclick=()=>{
 };
 function downloadCatalogBackup(){
  try{
-  const payload={format:"racharla-business-agent-backup-v1",exported_at:new Date().toISOString(),shop:structuredClone(S.shop)};
+  const payload={format:"racharla-business-agent-backup-v1",exported_at:new Date().toISOString(),shop:structuredClone(S.shop),last_published_shop:S.saved?.shop_data?structuredClone(S.saved.shop_data):null};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);
   const a=document.createElement("a");a.href=url;a.download="business-agent-catalog-backup.json";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
   notice("Catalog backup downloaded. Keep the file somewhere safe before resetting your shop.",true);return true;
  }catch(e){notice("Unable to create backup: "+e.message);return false}
 }
+async function refreshCleanup(){
+ const box=$("cleanupControls"),status=$("cleanupStatus");
+ if(!box||!S.session?.user){if(box)box.hidden=true;return}
+ const expiry=S.paidThrough?Date.parse(S.paidThrough):NaN,cutoff=S.retentionDeadline?Date.parse(S.retentionDeadline):NaN;
+ const eligible=!S.legacy&&!S.entitled&&Number.isFinite(cutoff)&&Date.now()>cutoff;
+ let pending=null;
+ try{const data=await call("cleanup_status");pending=data.cleanup||null}catch(e){status.textContent="Unable to check cleanup request status: "+e.message}
+ box.hidden=!eligible&&!pending;
+ $("requestCleanup").hidden=!eligible||pending?.status==="pending"||pending?.status==="processing"||pending?.status==="completed";
+ $("cancelCleanup").hidden=pending?.status!=="pending";
+ if(pending?.status==="pending")status.textContent="Deletion request received. You can cancel until "+new Date(pending.execute_after).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})+". After that, an administrator may remove the catalog and photos.";
+ else if(pending?.status==="processing")status.textContent="A previously requested cleanup is being processed.";
+ else if(pending?.status==="completed")status.textContent="Hosted catalog storage was removed as requested. Your paid receipts and order history were preserved.";
+ else if(pending?.status==="failed")status.textContent="Cleanup needs administrator retry. Your existing records remain protected from another owner's access.";
+ else status.textContent="Your paid month and 60-day grace period have ended. Back up your catalog first, then you can request old hosted files be removed. This does not delete payment or order history.";
+}
+A.refreshCleanup=refreshCleanup;
+$("requestCleanup").onclick=async()=>{
+ if(!S.session?.user||S.legacy||S.entitled)return notice("Deletion requests are only available to expired monthly shops past their grace period.");
+ if(!downloadCatalogBackup())return;
+ const confirmation=prompt("Your expired hosted catalog and photos may be deleted after 7 days and admin review. Type DELETE MY OLD CATALOG to request deletion:");
+ if(confirmation!=="DELETE MY OLD CATALOG")return notice("Cleanup not requested. Exact confirmation is required.");
+ try{await call("cleanup_request",{confirm_data_removal:confirmation});await refreshCleanup();notice("Deletion request recorded. You have seven days to cancel.",true)}
+ catch(e){notice("Could not request cleanup: "+e.message)}
+};
+$("cancelCleanup").onclick=async()=>{
+ if(!confirm("Cancel your pending hosted-catalog deletion?"))return;
+ try{await call("cleanup_cancel");await refreshCleanup();notice("Deletion request cancelled.",true)}
+ catch(e){notice("Could not cancel request: "+e.message)}
+};
 $("backupShop").onclick=downloadCatalogBackup;
 $("restartShop").onclick=()=>{
  if(!confirm("Your paid renewal grace period ended. A new catalog is required. Download your old data as a backup now?"))return;
