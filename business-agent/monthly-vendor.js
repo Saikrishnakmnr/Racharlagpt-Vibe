@@ -131,6 +131,24 @@ $("catalogPublishNow").onclick=()=>{
  if(!S.saved?.slug){navigate("publish");return notice("Choose a public shop URL, then tap Save & publish latest catalog.")}
  $("shopSlug").value=S.saved.slug; $("visibility").value="true";$("publishBtn").click();
 };
+function downloadCatalogBackup(){
+ try{
+  const payload={format:"racharla-business-agent-backup-v1",exported_at:new Date().toISOString(),shop:structuredClone(S.shop)};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download="business-agent-catalog-backup.json";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
+  notice("Catalog backup downloaded. Keep the file somewhere safe before resetting your shop.",true);return true;
+ }catch(e){notice("Unable to create backup: "+e.message);return false}
+}
+$("backupShop").onclick=downloadCatalogBackup;
+$("restartShop").onclick=()=>{
+ if(!confirm("Your paid renewal grace period ended. A new catalog is required. Download your old data as a backup now?"))return;
+ if(!downloadCatalogBackup())return;
+ if(!confirm("Start a NEW shop catalog? This device's previous products and details will be cleared. Your backup file can be kept for records."))return;
+ const previous=S.shop;S.shop=A.blank();
+ if(!persist()){S.shop=previous;return}
+ S.restartPrepared=true;A.renderOwner();navigate("business");
+ notice("New shop draft started. Enter business details, add products and publish when your renewed month is active.",true);
+};
 $("catalogRestorePublished").onclick=()=>{
  const published=S.saved?.shop_data;
  if(!published)return notice("No published catalog found. Publish a shop first, then it can be restored on another phone.");
