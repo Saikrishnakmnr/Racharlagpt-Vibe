@@ -53,7 +53,7 @@ Deno.serve(async req=>{
   if(!requests?.length||!["pending","failed"].includes(requests[0].status)||Date.parse(requests[0].execute_after)>Date.now())return reply({error:"There is no eligible owner-consented cleanup request"},409);
   if(!await shopEligible(uid,requests[0].shop_id))return reply({error:"The customer renewed or retains protected access"},409);
   // Database function locks the account row and verifies eligibility again, preventing cleanup against a renewed active shop.
-  const shopId=await db("rpc/claim_cleanup","POST",{p_user_id:uid});
+  const shopId=await db("rpc/business_agent_claim_cleanup","POST",{p_user_id:uid});
   if(shopId!==requests[0].shop_id)throw Error("Database returned unexpected shop ID");
   try{
    // Preserve the shop row (customer order references point to it) but release the inactive catalog JSON.
