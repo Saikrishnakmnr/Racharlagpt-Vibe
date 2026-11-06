@@ -26,11 +26,12 @@ async function entitlement(uid:string){
  const until=mon?.[0]?.paid_through||null;
  return {active:!!legacy?.length||!!(until&&new Date(until).getTime()>Date.now()),paid_through:until,legacy:!!legacy?.length}
 }
+async function pricing(){const rows=await db("business_agent_pricing?id=eq.1&select=monthly_amount_paise,reference_amount_paise,reference_kind,offer_label,offer_details,offer_ends_at,updated_at&limit=1");const x=rows?.[0];if(!x)throw Error("Pricing configuration missing");const isOffer=!!x.offer_label&&(!x.offer_ends_at||Date.parse(x.offer_ends_at)>Date.now());return {...x,offer_active:isOffer,monthly_amount_paise:Number(x.monthly_amount_paise),reference_amount_paise:Number(x.reference_amount_paise)}}
 async function bought(uid:string){return db("business_agent_monthly_purchases?user_id=eq."+encodeURIComponent(uid)+"&select=id,user_id,razorpay_order_id,razorpay_payment_id,status,created_at,period_end&order=created_at.desc&limit=30")}
 async function activate(order:string,payment:string){
  const purchases=await db("business_agent_monthly_purchases?razorpay_order_id=eq."+encodeURIComponent(order)+"&select=*&limit=1");const p=purchases?.[0];if(!p)throw Error("Order does not belong to Business Agent");
  const x=await razorpay("payments/"+encodeURIComponent(payment));
- if(x.order_id!==order||x.id!==payment||x.status!=="captured"||x.amount!==9900||x.currency!=="INR")throw Error("Payment capture did not match ₹99 plan");
+ if(x.order_id!==order||x.id!==payment||x.status!=="captured"||x.amount!==p.amount_paise||x.currency!=="INR")throw Error("Payment capture did not match this payment order");
  const v=await post("rpc/business_agent_activate_month",{p_order_id:order,p_payment_id:payment});
  return v;
 }
@@ -38,7 +39,7 @@ async function recover(uid:string){
  const ps=await bought(uid);
  for(const p of ps||[]){if(p.status!=="created")continue;
   const r=await razorpay("orders/"+encodeURIComponent(p.razorpay_order_id)+"/payments");
-  for(const pay of r.items||[]){if(pay.status==="captured"&&pay.amount===9900&&pay.currency==="INR"&&pay.order_id===p.razorpay_order_id){await activate(p.razorpay_order_id,pay.id);break}}
+  for(const pay of r.items||[]){if(pay.status==="captured"&&pay.amount===p.amount_paise&&pay.currency==="INR"&&pay.order_id===p.razorpay_order_id){await activate(p.razorpay_order_id,pay.id);break}}
  }
  return entitlement(uid);
 }
@@ -86,6 +87,7 @@ Deno.serve(async req=>{
  let data:any;try{const s=await req.text();if(s.length>160000)return err("Request too large",413);data=JSON.parse(s||"{}")}catch{return err("Invalid JSON")}
  try{
   const action=clean(data.action,40);
+  if(action==="pricing")return respond({pricing:await pricing()});
   if(action==="public"){
    const s=slug(data.slug);if(!/^[a-z0-9-]{3,70}$/.test(s))return err("Invalid shop URL");
    const shop=await shopForSlug(s);return shop?respond({slug:s,shop:shop.shop_data}):err("Shop unavailable or awaiting renewal",404);
@@ -133,17 +135,18 @@ Deno.serve(async req=>{
   if(action==="me"){
    const ent=await entitlement(u.id);
    const shops=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,slug,published,shop_data&limit=1");
-   return respond({licensed:ent.active,paid_through:ent.paid_through,legacy:ent.legacy,sales_enabled:Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")==="true",shop:shops?.[0]||null,user_email:u.email||null,price_paise:9900,renewal_mode:"manual_prepaid"});
+   const price=await pricing();return respond({licensed:ent.active,paid_through:ent.paid_through,legacy:ent.legacy,sales_enabled:Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")==="true",shop:shops?.[0]||null,user_email:u.email||null,price_paise:price.monthly_amount_paise,pricing:price,renewal_mode:"manual_prepaid"});
   }
   if(action==="checkout"){
-   if(Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")!=="true")return err("₹99 monthly checkout is being tested. No payment is being taken.",503);
+   if(Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")!=="true")return err("Monthly checkout is being tested. No payment is being taken.",503);
    if(!RK||!RS)return err("Checkout configuration unavailable",503);
    await recover(u.id);
    const purchases=await bought(u.id);
-   for(const p of purchases||[]){if(p.status!=="created")continue;const o=await razorpay("orders/"+encodeURIComponent(p.razorpay_order_id));if(o.amount===9900&&o.currency==="INR"&&o.status!=="paid")return respond({id:o.id,key_id:RK,currency:"INR",amount:9900,reused:true})}
-   const order=await razorpay("orders",{method:"POST",body:JSON.stringify({amount:9900,currency:"INR",receipt:"bam_"+crypto.randomUUID().replaceAll("-","").slice(0,30),notes:{product:"business_agent_monthly",months:"1"}})});
-   await post("business_agent_monthly_purchases",{user_id:u.id,razorpay_order_id:order.id,amount_paise:9900,currency:"INR",status:"created"});
-   return respond({id:order.id,key_id:RK,currency:"INR",amount:9900});
+   for(const p of purchases||[]){if(p.status!=="created")continue;const o=await razorpay("orders/"+encodeURIComponent(p.razorpay_order_id));if(o.amount===p.amount_paise&&o.currency==="INR"&&o.status!=="paid")return respond({id:o.id,key_id:RK,currency:"INR",amount:p.amount_paise,reused:true,notice:"Your unfinished checkout keeps its original quoted price."})}
+   const current=await pricing();const charge=current.monthly_amount_paise;if(!Number.isSafeInteger(charge)||charge<100||charge>1000000)throw Error("Monthly price is unavailable");
+   const order=await razorpay("orders",{method:"POST",body:JSON.stringify({amount:charge,currency:"INR",receipt:"bam_"+crypto.randomUUID().replaceAll("-","").slice(0,30),notes:{product:"business_agent_monthly",months:"1",rate_paise:String(charge)}})});
+   await post("business_agent_monthly_purchases",{user_id:u.id,razorpay_order_id:order.id,amount_paise:charge,currency:"INR",status:"created"});
+   return respond({id:order.id,key_id:RK,currency:"INR",amount:charge});
   }
   if(action==="verify"){
    if(!RS)return err("Verification unavailable",503);
@@ -158,7 +161,7 @@ Deno.serve(async req=>{
    const ent=await recover(u.id);return respond({licensed:ent.active,paid_through:ent.paid_through});
   }
   if(action==="save"){
-   const ent=await entitlement(u.id);if(!ent.active)return err("Renew the ₹99 monthly plan to publish changes",403);
+   const ent=await entitlement(u.id);if(!ent.active)return err("Renew your monthly plan to publish changes",403);
    const shop=normalizeShop(data.shop,u.id);
    const s=slug(data.slug||shop.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""));
    if(!/^[a-z0-9-]{3,70}$/.test(s))return err("Choose a valid URL name");
