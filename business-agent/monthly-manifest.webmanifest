@@ -1,0 +1,25 @@
+{
+  "id": "/business-agent/monthly/",
+  "name": "Racharla Shops — Business Agent",
+  "short_name": "Racharla Shops",
+  "description": "₹99/month business website, live catalog and WhatsApp orders",
+  "start_url": "/business-agent/monthly.html?launch=shop",
+  "scope": "/business-agent/",
+  "display": "standalone",
+  "background_color": "#f5faf6",
+  "theme_color": "#124736",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
