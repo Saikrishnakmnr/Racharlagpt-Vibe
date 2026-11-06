@@ -2,6 +2,10 @@
 
 This guide is for the **current monthly hosted Business Agent** at [vibe.racharlagpt.in/business-agent/monthly.html](https://vibe.racharlagpt.in/business-agent/monthly.html). It replaces the earlier ₹999 one-time downloadable prototype.
 
+## Current introductory price
+
+**Launch rate:** ₹99 for one prepaid month. The homepage displays ₹499 as the **planned regular rate**, clearly labeled as proposed and **not** a historical former selling price. The administrator can change the live monthly charge, reference rate, offer title, description and expiry in the secure [Pricing Admin](https://vibe.racharlagpt.in/admin-pricing.html) panel. The exact Razorpay order amount always matches the server's quoted checkout amount; unfinished prior orders retain their original quoted amount. Future months may be priced differently, so always review the checkout amount before paying. No automatic recurring charge.
+
 ## What you buy
 
 For **₹99 paid in advance**, you receive one calendar month of online shop hosting, catalog updates, shareable customer link and access to your owner order dashboard. Payments for another month are **not automatic**. Renew manually whenever you want to keep your website taking orders. If you stop paying, online ordering is paused when the paid period expires; your saved shop details remain in your account to restart later.
