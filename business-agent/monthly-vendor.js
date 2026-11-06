@@ -3,7 +3,7 @@
 const models={vegetables:["Farm-fresh picks","Fresh fruits and vegetables for your family."],kirana:["Daily essentials","Browse groceries and home essentials nearby."],restaurant:["Fresh food, simple ordering","Explore our food menu and send an order enquiry."],meat:["Fresh cuts and packs","Select fresh chicken, meat and collection options."],bakery:["Freshly baked goodness","Cakes, breads and snacks for special moments."],salon:["Beauty and wellness","Explore our beauty services and ask about appointments."],photography:["Your moments, beautifully captured","Explore photography packages and request a quote."],wholesale:["Wholesale and bulk supply","Browse bulk items and enquire for a quotation."],electronics:["Products & repair services","Explore our electronics and services."],general:["Welcome to our business","Find products and services and contact us on WhatsApp."]};
 function renderOwner(){
  const s=S.shop;for(const id of ["idea","name","model","phone","address","tagline","about","offerText","upi"])$(id).value=s[id]||"";
- for(const id of ["pickup","delivery","appointment","cashPickup","cashDelivery","directUpi","showQr"])$(id).checked=!!s[id];
+ for(const id of ["pickup","delivery","appointment","cashPickup","cashDelivery","directUpi","showQr"])$(id).checked=!!s[id];$("deliveryFee").value=s.deliveryFee??0;
  $("shopSlug").value=S.saved?.slug||slug(s.name);
  renderItems();
 }
@@ -53,7 +53,7 @@ $("saveItem").onclick=async()=>{
 $("nextOptions").onclick=()=>{if(!S.shop.products.length)return notice("Add your first product before continuing");navigate("settings")};
 $("saveOptions").onclick=()=>{
  const s=S.shop;for(const id of ["pickup","delivery","appointment","cashPickup","cashDelivery","directUpi","showQr"])s[id]=$(id).checked;
- s.upi=$("upi").value.trim();s.cashPickup=s.pickup&&s.cashPickup;s.cashDelivery=s.delivery&&s.cashDelivery;
+ const charge=Number($("deliveryFee").value);if(!Number.isFinite(charge)||charge<0||charge>10000)return notice("Delivery charge must be between ₹0 and ₹10,000");s.deliveryFee=s.delivery?Math.round(charge*100)/100:0;s.upi=$("upi").value.trim();s.cashPickup=s.pickup&&s.cashPickup;s.cashDelivery=s.delivery&&s.cashDelivery;
  if(!s.pickup&&!s.delivery&&!s.appointment)return notice("Enable pickup, delivery or service enquiries");
  if(s.directUpi&&!/^[a-zA-Z0-9._-]{2,100}@[a-zA-Z0-9.-]{2,60}$/.test(s.upi))return notice("Enter a valid seller UPI ID");
  if(s.showQr&&!s.merchantQr)return notice("Upload your own merchant payment QR first");
