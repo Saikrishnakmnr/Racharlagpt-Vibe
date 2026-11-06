@@ -20,11 +20,11 @@ async function hmac(message:string){const key=await crypto.subtle.importKey("raw
 function same(a:string,b:string){if(a.length!==b.length)return false;let v=0;for(let i=0;i<a.length;i++)v|=a.charCodeAt(i)^b.charCodeAt(i);return v===0}
 async function entitlement(uid:string){
  const [mon,legacy]=await Promise.all([
-  db("business_agent_monthly_accounts?user_id=eq."+encodeURIComponent(uid)+"&select=paid_through&limit=1"),
+  db("business_agent_monthly_accounts?user_id=eq."+encodeURIComponent(uid)+"&select=paid_through,requires_new_shop&limit=1"),
   db("business_agent_licenses?user_id=eq."+encodeURIComponent(uid)+"&status=eq.active&select=id&limit=1")
  ]);
  const until=mon?.[0]?.paid_through||null;
- return {active:!!legacy?.length||!!(until&&new Date(until).getTime()>Date.now()),paid_through:until,legacy:!!legacy?.length}
+ return {active:!!legacy?.length||!!(until&&new Date(until).getTime()>Date.now()),paid_through:until,legacy:!!legacy?.length,requires_new_shop:!!mon?.[0]?.requires_new_shop}
 }
 async function operations(){const rows=await db("business_agent_operations?id=eq.1&select=*&limit=1");if(!rows?.length)throw Error("Service settings unavailable");return rows[0]}
 async function pricing(){const rows=await db("business_agent_pricing?id=eq.1&select=monthly_amount_paise,reference_amount_paise,reference_kind,offer_label,offer_details,offer_ends_at,updated_at&limit=1");const x=rows?.[0];if(!x)throw Error("Pricing configuration missing");const isOffer=!!x.offer_label&&(!x.offer_ends_at||Date.parse(x.offer_ends_at)>Date.now());return {...x,offer_active:isOffer,monthly_amount_paise:Number(x.monthly_amount_paise),reference_amount_paise:Number(x.reference_amount_paise)}}
