@@ -53,12 +53,14 @@ Deno.serve(async req=>{
   if(!requests?.length||!["pending","failed"].includes(requests[0].status)||Date.parse(requests[0].execute_after)>Date.now())return reply({error:"There is no eligible owner-consented cleanup request"},409);
   if(!await shopEligible(uid,requests[0].shop_id))return reply({error:"The customer renewed or retains protected access"},409);
   // Database function locks the account row and verifies eligibility again, preventing cleanup against a renewed active shop.
-  const shopId=await db("rpc/business_agent_claim_cleanup","POST",{p_user_id:uid});
-  if(shopId!==requests[0].shop_id)throw Error("Database returned unexpected shop ID");
+  const claim=await db("rpc/business_agent_claim_cleanup_v2","POST",{p_user_id:uid});
+  if(claim?.shop_id!==requests[0].shop_id||!Array.isArray(claim.files))throw Error("Database returned unexpected cleanup snapshot");
+  const files=claim.files.filter((name:unknown)=>typeof name==="string"&&String(name).startsWith(uid+"/")&&String(name).length<500&&!String(name).includes(".."));if(files.length!==claim.files.length)throw Error("Invalid owner photo path in cleanup snapshot");
+  const shopId=claim.shop_id;
   try{
    // Preserve the shop row (customer order references point to it) but release the inactive catalog JSON.
-   await db("business_agent_shops?id=eq."+shopId+"&user_id=eq."+uid,"PATCH",{shop_data:{},published:false,updated_at:new Date().toISOString()});
-   const n=await removeOwnerPhotos(uid);
+   // Catalog is already unpublished and cleared atomically by the database claim; only snapshot files may be deleted.
+   let n=0;for(let i=0;i<files.length;i+=100){await storage("object/"+BUCKET,"DELETE",{prefixes:files.slice(i,i+100)});n+=files.slice(i,i+100).length}
    await db("business_agent_cleanup_requests?user_id=eq."+uid,"PATCH",{status:"completed",deleted_files:n,completed_at:new Date().toISOString(),last_error:null,updated_at:new Date().toISOString()});
    return reply({ok:true,shop_id:shopId,photos_removed:n,order_history_preserved:true,billing_history_preserved:true});
   }catch(e){await db("business_agent_cleanup_requests?user_id=eq."+uid,"PATCH",{status:"failed",last_error:String(e).slice(0,190),updated_at:new Date().toISOString()});throw e}
