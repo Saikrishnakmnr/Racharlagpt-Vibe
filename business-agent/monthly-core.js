@@ -67,7 +67,7 @@ async function refreshAccount(){
  state.session=(await client.auth.getSession()).data.session;const signed=!!state.session?.user;
  for(const id of ["loginFields","loginBtn","signupBtn","googleBtn"])$(id).hidden=signed;
  $("logoutBtn").hidden=!signed;
- if(!signed){state.ownerId=null;state.entitled=false;state.legacy=false;state.paidThrough=null;state.salesEnabled=false;state.restartRequired=false;state.retentionDeadline=null;state.operations=null;state.saved=null;state.shop=blank();window.RBA?.renderOwner?.();displayPlan();if($("cleanupControls"))$("cleanupControls").hidden=true;return}
+ if(!signed){state.ownerId=null;state.entitled=false;state.legacy=false;state.paidThrough=null;state.salesEnabled=false;state.restartRequired=false;state.retentionDeadline=null;state.operations=null;state.saved=null;state.shop=read(guestKey)||blank();window.RBA?.renderOwner?.();displayPlan();if($("cleanupControls"))$("cleanupControls").hidden=true;return}
  const uid=state.session.user.id;
  if(state.ownerId!==uid){
   if(state.ownerId)persist();
@@ -75,6 +75,7 @@ async function refreshAccount(){
   // A shared-device guest preview must never silently become another owner's shop.
   const importGuest=!existing&&guest?.name&&guest.products?.length&&confirm("A free-preview shop draft exists on this device. Is it YOUR business draft, and do you want to import it into this account? Select Cancel to start with an empty shop.");
   state.shop=existing||(importGuest?structuredClone(guest):blank());
+  try{localStorage.removeItem(guestKey)}catch(e){} // Never expose this guest draft to another account after account selection.
   state.ownerId=uid;persist();
  }
  try{
@@ -96,7 +97,7 @@ function authHandlers(){
  $("loginBtn").onclick=()=>auth("signin").catch(e=>notice(e.message));
  $("signupBtn").onclick=()=>auth("signup").catch(e=>notice(e.message));
  $("googleBtn").onclick=async()=>{if(!client)return notice("Google sign-in unavailable");const r=await client.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname}});if(r.error)notice(r.error.message)};
- $("logoutBtn").onclick=async()=>{persist();await client.auth.signOut();state.ownerId=null;state.shop=blank();await refreshAccount();notice("Signed out; private shop data is no longer shown.",true)};
+ $("logoutBtn").onclick=async()=>{persist();try{localStorage.removeItem(guestKey)}catch(e){}await client.auth.signOut();state.ownerId=null;state.shop=blank();await refreshAccount();notice("Signed out; private shop data is no longer shown.",true)};
 }
 async function compress(file,dimension=700,quality=.7){
  if(!file)return null;if(!/^image\/(png|jpeg|webp)$/.test(file.type)||file.size>5000000)throw Error("Choose a JPG, PNG or WebP under 5 MB");
