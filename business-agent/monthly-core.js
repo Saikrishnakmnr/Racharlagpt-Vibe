@@ -44,6 +44,15 @@ if($("vendorApp")){
 function getPublicLink(){return state.saved?.published?location.origin+location.pathname+"?shop="+encodeURIComponent(state.saved.slug):""}
 function displayPricing(){const p=state.pricing||{};const amount=Number(p.monthly_amount_paise)||9900;const fmt=n=>"₹"+(n/100).toLocaleString("en-IN",{maximumFractionDigits:2});if($("billingAmount"))$("billingAmount").textContent=fmt(amount);if($("payBtnPrice"))$("payBtnPrice").textContent=fmt(amount);if($("billingOfferLabel"))$("billingOfferLabel").textContent=p.offer_active?(p.offer_label||"Launch offer"):"Current monthly rate";if($("billingOfferDetails"))$("billingOfferDetails").textContent=p.offer_active?(p.offer_details||"Introductory offer for shop owners."):"Current monthly rate";const show=!!p.offer_active&&p.reference_kind!=="none"&&Number(p.reference_amount_paise)>amount;if($("billingCompare"))$("billingCompare").hidden=!show;if(show){$("billingReference").textContent=fmt(Number(p.reference_amount_paise));$("billingCompareKind").textContent=p.reference_kind==="former"?"Genuine former selling price":"Planned regular rate — not a former selling price"}}
 async function refreshPricing(){try{const r=await call("pricing",{},false);if(r.pricing&&Number.isInteger(r.pricing.monthly_amount_paise)){state.pricing=r.pricing;displayPricing();displayPlan()}}catch(e){/* The server must always verify actual checkout price. */}}
+function displayRetention(){
+ const el=$("retentionStatus"),maint=$("maintenanceStatus");if(!el||!maint)return;
+ if(!state.session?.user){el.textContent="Sign in to see your paid period and renewal deadline.";return}
+ if(state.legacy){el.textContent="Your earlier paid license is honored; the new monthly retention limit does not cancel it."}
+ else if(state.restartRequired){el.textContent="Your earlier catalog retention window has ended. A fresh shop catalog is required for new activation."}
+ else if(!state.paidThrough||Date.parse(state.paidThrough)<0){el.textContent="Your first month begins when your monthly payment activates."}
+ else {const until=Date.parse(state.paidThrough),now=Date.now(),deadline=state.retentionDeadline?Date.parse(state.retentionDeadline):until+state.retentionDays*86400000;el.textContent=until>now?"Active until "+new Date(until).toLocaleDateString("en-IN")+". Renew anytime to extend one month.":now<deadline?"Shop paused. Renew within "+Math.max(1,Math.ceil((deadline-now)/86400000))+" day(s), by "+new Date(deadline).toLocaleDateString("en-IN")+", to continue with the same shop.":"Retention window ended. Renewing will require a new catalog."}
+ const op=state.operations;const newSales=!op?.new_enrollment_enabled,renewals=!op?.renewal_enabled;maint.hidden=!(newSales||renewals);if(!maint.hidden)maint.textContent=(newSales?"New enrollments are paused. ":"")+(renewals?"Renewals are paused. ":"")+(op?.maintenance_message||"Please try later.");
+}
 function displayPlan(){
  const end=state.paidThrough?new Date(state.paidThrough):null;
  const monthly="₹"+((Number(state.pricing?.monthly_amount_paise)||9900)/100).toLocaleString("en-IN",{maximumFractionDigits:2});const text=state.legacy?"Your earlier one-time purchase remains honored":state.entitled?"Active through "+(end?.toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})||"your prepaid period"):"No active monthly access — "+monthly+" per prepaid month";
@@ -51,7 +60,7 @@ function displayPlan(){
  $("billingExpiry").textContent=text;$("planSummary").textContent=text;
  $("payBtn").disabled=state.legacy;$("payBtn").textContent=state.legacy?"Existing purchase recognized":state.entitled?"Extend by 1 month · "+monthly:"Activate 1 month · "+monthly;
  $("publishStatus").textContent=state.entitled?"Your paid shop is active. Publish your current catalog when ready.":"Your shop will be paused until you activate or renew a paid month. Your saved data is retained.";
- $("publicLink").value=getPublicLink();
+ $("publicLink").value=getPublicLink();displayRetention();
 }
 async function refreshAccount(){
  if(!client){notice("Cloud sign-in is unavailable; try again with internet connection.");return}
