@@ -64,14 +64,14 @@ async function pay(){
  if(S.paying)return;
  if(!S.session?.user)return notice("Sign in before paying for monthly access");
  if(S.legacy)return notice("Your earlier paid purchase is honored.",true);
- if(!S.salesEnabled)return notice("₹99 payment checkout is temporarily closed for activation and refund verification. No charge has been taken.");
+ if(!S.salesEnabled)return notice("Monthly payment checkout is temporarily closed for activation and refund verification. No charge has been taken.");
  collectBusiness();const invalid=validate();if(invalid){navigate("business");return notice(invalid)}
  if(!S.shop.products.length){navigate("products");return notice("Add your catalog before purchasing")}
  S.paying=true;$("payBtn").disabled=true;
  try{
-  const order=await call("checkout");if(!order.id||order.amount!==9900||order.currency!=="INR"||!order.key_id)throw Error("Invalid Razorpay ₹99 order");
+  const order=await call("checkout");if(!order.id||!Number.isInteger(order.amount)||order.amount<100||order.amount>1000000||order.currency!=="INR"||!order.key_id)throw Error("Invalid Razorpay monthly order");const charged="₹"+(order.amount/100).toLocaleString("en-IN",{maximumFractionDigits:2});if(order.amount!==Number(S.pricing?.monthly_amount_paise||9900)&&!confirm("Your saved unfinished checkout has a different price: "+charged+". Continue with that exact amount?"))return;
   if(typeof Razorpay!=="function")throw Error("Razorpay checkout did not load");
-  const popup=new Razorpay({key:order.key_id,amount:9900,currency:"INR",order_id:order.id,name:"Racharla Business Agent",description:"One prepaid month of online shop hosting",prefill:{email:S.session.user.email},theme:{color:"#116b4f"},handler:async result=>{
+  const popup=new Razorpay({key:order.key_id,amount:order.amount,currency:"INR",order_id:order.id,name:"Racharla Business Agent",description:"One prepaid month of online shop hosting · "+charged,prefill:{email:S.session.user.email},theme:{color:"#116b4f"},handler:async result=>{
    try{notice("Verifying Razorpay capture and activating your month...");const verified=await call("verify",result);if(!verified.licensed)throw Error("Payment activation pending");await A.refreshAccount();navigate("publish");notice("Payment verified. Your monthly shop is active. Publish now.",true)}catch(e){notice("Payment verification pending: "+e.message+". Use Recover Payment before paying again.")}
   }});
   popup.on("payment.failed",e=>notice("Payment failed: "+String(e?.error?.description||"Retry").slice(0,130)));popup.open();
@@ -118,5 +118,5 @@ function sharingUrl(){const url=A.getPublicLink();if(!url)notice("Publish your s
 $("copyLink").onclick=async()=>{const url=sharingUrl();if(!url)return;try{await navigator.clipboard.writeText(url);notice("Shop link copied.",true)}catch{prompt("Copy shop link:",url)}};
 $("shareWhatsapp").onclick=()=>{const url=sharingUrl();if(url)location.href="https://wa.me/?text="+encodeURIComponent("Visit "+S.shop.name+" online shop: "+url)};
 $("preview").onclick=()=>{collectBusiness();if(!S.shop.name)return notice("Enter your shop name before preview");A.previewCustomer?.(structuredClone(S.shop))};
-A.initVendor=async()=>{A.authHandlers();A.renderOwner();A.displayPlan();const start=location.hash.slice(1)||"overview";try{history.replaceState({rba:start,rbaPrevious:null,rbaDepth:0},"",location.href)}catch{}A.navigate(start,true);if(client){client.auth.onAuthStateChange(()=>setTimeout(()=>A.refreshAccount(),0));await A.refreshAccount()}else notice("Cloud sign-in is unavailable. Check your internet connection.")};
+A.initVendor=async()=>{A.authHandlers();A.renderOwner();A.displayPlan();A.refreshPricing?.();const start=location.hash.slice(1)||"overview";try{history.replaceState({rba:start,rbaPrevious:null,rbaDepth:0},"",location.href)}catch{}A.navigate(start,true);if(client){client.auth.onAuthStateChange(()=>setTimeout(()=>A.refreshAccount(),0));await A.refreshAccount()}else notice("Cloud sign-in is unavailable. Check your internet connection.")};
 })();
