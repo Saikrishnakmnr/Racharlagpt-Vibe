@@ -111,5 +111,5 @@ function sharingUrl(){const url=A.getPublicLink();if(!url)notice("Publish your s
 $("copyLink").onclick=async()=>{const url=sharingUrl();if(!url)return;try{await navigator.clipboard.writeText(url);notice("Shop link copied.",true)}catch{prompt("Copy shop link:",url)}};
 $("shareWhatsapp").onclick=()=>{const url=sharingUrl();if(url)location.href="https://wa.me/?text="+encodeURIComponent("Visit "+S.shop.name+" online shop: "+url)};
 $("preview").onclick=()=>{collectBusiness();if(!S.shop.name)return notice("Enter your shop name before preview");A.previewCustomer?.(structuredClone(S.shop))};
-A.initVendor=async()=>{A.authHandlers();A.renderOwner();A.displayPlan();A.navigate(location.hash.slice(1)||"overview",true);if(client){client.auth.onAuthStateChange(()=>setTimeout(()=>A.refreshAccount(),0));await A.refreshAccount()}else notice("Cloud sign-in is unavailable. Check your internet connection.")};
+A.initVendor=async()=>{A.authHandlers();A.renderOwner();A.displayPlan();const start=location.hash.slice(1)||"overview";try{history.replaceState({rba:start,rbaPrevious:null,rbaDepth:0},"",location.href)}catch{}A.navigate(start,true);if(client){client.auth.onAuthStateChange(()=>setTimeout(()=>A.refreshAccount(),0));await A.refreshAccount()}else notice("Cloud sign-in is unavailable. Check your internet connection.")};
 })();
