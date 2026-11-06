@@ -27,7 +27,7 @@ async function call(action,data={},auth=true){
 const steps=["overview","business","products","settings","billing","publish","orders"];
 function navigate(s,fromHistory=false){
  if(!steps.includes(s))s="overview";
- if(s!==state.tab&&!fromHistory)try{history.pushState({rba:s},"",location.pathname+location.search+"#"+s)}catch{}
+ if(s!==state.tab&&!fromHistory)try{history.pushState({rba:s,rbaPrevious:state.tab,rbaDepth:(Number(history.state?.rbaDepth)||0)+1},"",location.pathname+location.search+"#"+s)}catch{}
  state.tab=s;
  $$("[data-section]").forEach(el=>el.hidden=el.dataset.section!==s);
  $$("[data-tab]").forEach(el=>{el.classList.toggle("active",el.dataset.tab===s);el.setAttribute("aria-current",el.dataset.tab===s?"step":"false")});
@@ -38,8 +38,8 @@ function navigate(s,fromHistory=false){
 }
 if($("vendorApp")){
  $$("[data-tab]").forEach(b=>b.onclick=()=>navigate(b.dataset.tab));
- $("backStep").onclick=()=>{const i=steps.indexOf(state.tab);navigate(state.tab==="orders"?"overview":steps[Math.max(0,i-1)])};
- addEventListener("popstate",e=>{if(state.customerSlug)return;navigate(e.state?.rba||location.hash.slice(1)||"overview",true)});
+ $("backStep").onclick=()=>{const i=steps.indexOf(state.tab);const previous=state.tab==="orders"?"overview":steps[Math.max(0,i-1)];if(history.state?.rbaPrevious===previous&&Number(history.state?.rbaDepth)>0){history.back();return}try{history.replaceState({...history.state,rba:previous,rbaPrevious:null},"",location.pathname+location.search+"#"+previous)}catch{}navigate(previous,true)};
+ addEventListener("popstate",e=>{if(state.customerSlug)return;if($("customerApp")&&!$("customerApp").hidden){$("customerApp").hidden=true;$("vendorApp").hidden=false}navigate(e.state?.rba||location.hash.slice(1)||"overview",true)});
 }
 function getPublicLink(){return state.saved?.published?location.origin+location.pathname+"?shop="+encodeURIComponent(state.saved.slug):""}
 function displayPlan(){
