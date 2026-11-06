@@ -44,6 +44,8 @@ async function recover(uid:string){
  }
  return entitlement(uid);
 }
+async function availableSlugs(wanted:string,uid:string,model:string){const base=slug(wanted),prefix=base.slice(0,60).replace(/-+$/,"");const proposals=[prefix,prefix+"-"+(model==="general"?"store":slug(model)),prefix+"-shop",prefix+"-2",prefix+"-3",prefix+"-4",prefix+"-5",prefix+"-6"].filter((x,i,a)=>x!==base&&x.length<=70&&/^[a-z0-9-]{3,70}$/.test(x)&&a.indexOf(x)===i);
+ const found=await db("business_agent_shops?slug=in.("+[base,...proposals].map(encodeURIComponent).join(",")+")&select=slug,user_id");const used=new Map((found||[]).map((p:any)=>[p.slug,p.user_id]));return {available:!used.has(base)||used.get(base)===uid,suggestions:proposals.filter(x=>!used.has(x)||used.get(x)===uid).slice(0,3)}}
 async function shopForSlug(s:string){
  const rows=await db("business_agent_shops?slug=eq."+encodeURIComponent(s)+"&published=eq.true&select=id,user_id,slug,shop_data&limit=1");
  const shop=rows?.[0];if(!shop)return null;
@@ -135,6 +137,7 @@ Deno.serve(async req=>{
    return orderResponse(order.order_number);
   }
   const u=await user(req);
+  if(action==="slug_check"){const value=slug(data.slug),model=clean(data.model||"general",32);if(!/^[a-z0-9-]{3,70}$/.test(value))return err("Use 3–70 lowercase letters, numbers or hyphens",400);const result=await availableSlugs(value,u.id,model);return respond({slug:value,...result,notice:result.available?"This shop link is available.":"This URL is already used. Choose a suggested alternative."})}
   if(action==="me"){
    const ent=await entitlement(u.id);
    const shops=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,slug,published,shop_data&limit=1");
@@ -170,6 +173,7 @@ Deno.serve(async req=>{
    const shop=normalizeShop(data.shop,u.id);
    const s=slug(data.slug||shop.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""));
    if(!/^[a-z0-9-]{3,70}$/.test(s))return err("Choose a valid URL name");
+   const check=await availableSlugs(s,u.id,shop.model);if(!check.available)return respond({error:"This website link is already taken by another shop. Pick another link.",slug:s,suggestions:check.suggestions},409);
    const own=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,license_id&limit=1");
    const published=data.published===true;
    if(own?.length)await patch("business_agent_shops?id=eq."+encodeURIComponent(own[0].id)+"&user_id=eq."+encodeURIComponent(u.id),{slug:s,shop_data:shop,published,updated_at:new Date().toISOString()});
