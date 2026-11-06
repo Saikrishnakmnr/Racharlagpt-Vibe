@@ -25,17 +25,6 @@ async function candidates(){
  out.push({...item,slug:shops?.[0]?.slug||"",published:!!shops?.[0]?.published});
  }}return out
 }
-async function removeOwnerPhotos(uid:string){
- // Restrict each path to the authenticated merchant UUID namespace. Do not delete by business name.
- let total=0;
- for(let page=0;page<60;page++){
-  const rows=await storage("object/list/"+BUCKET,"POST",{prefix:uid+"/",limit:100,offset:0,sortBy:{column:"name",order:"asc"}});
-  const filenames=(Array.isArray(rows)?rows:[]).filter((f:any)=>f&&typeof f.name==="string"&&!f.name.includes("/")&&!f.name.includes("..")&&f.id).map((f:any)=>uid+"/"+f.name);
-  if(!filenames.length){if(!rows?.length)return total;throw Error("Unexpected nested or invalid storage entry; manual review required")}
-  await storage("object/"+BUCKET,"DELETE",{prefixes:filenames});total+=filenames.length;
- }
- throw Error("Storage cleanup batch limit reached, review and retry");
-}
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers});
  if(req.method!=="POST")return reply({error:"POST required"},405);
