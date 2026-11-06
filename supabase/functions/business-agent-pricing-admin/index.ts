@@ -19,7 +19,7 @@ Deno.serve(async req=>{
    const rows=await db("business_agent_operations?id=eq.1&select=*");const current=rows?.[0];if(!current)return output({error:"Operations settings unavailable"},503);
    if(body.action==="operations_get")return output({operations:current});
    const retention=Number(body.retention_days),message=String(body.maintenance_message||"").trim();
-   if(!Number.isInteger(retention)||retention<30||retention>365)return output({error:"Retention must be 30 to 365 days"},400);
+   if(!Number.isInteger(retention)||retention<60||retention>365)return output({error:"Retention must be 60 to 365 days"},400);
    if(message.length<10||message.length>280)return output({error:"Maintenance message must be 10–280 characters"},400);
    const enabled=["new_enrollment_enabled","renewal_enabled","public_orders_enabled"];
    if(enabled.some(k=>typeof body[k]!=="boolean"))return output({error:"All availability switches must be true or false"},400);
