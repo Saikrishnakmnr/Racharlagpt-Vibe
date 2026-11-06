@@ -29,7 +29,7 @@ Your public link looks like:
 - To add a new product, change a price, update stock or remove a sold-out item, go to **Catalog**, save the changes, then select **Publish → Save & publish latest catalog**.
 - Customers using the hosted shop refresh to see the newest published catalog. Checkout checks current prices again and refuses a changed total.
 - The owner can sign out after publishing. There is no need to keep the browser open.
-- If you stopped for a month, pay ₹99 again from the same account; the existing business details and catalog are retained for reactivation.
+- If your shop expired, renew within the 60-day grace period to continue the same catalog. After more than 60 days, a fresh catalog is required by the restart policy; use Backup my catalog before starting fresh. Your existing paid records are kept separately.
 - The installable PWA is a shared Racharla Shops experience, not a separate native Android APK or iPhone app for every owner.
 
 ## Customer ordering
