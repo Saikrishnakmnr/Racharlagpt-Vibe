@@ -4,7 +4,7 @@ let filteredCategory="All",opening=false,pendingWhatsApp="";
 const safe=x=>String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const products=()=>Array.isArray(S.customerShop?.products)?S.customerShop.products.filter(x=>x.available!==false&&x.stock!==0):[];
 function showCustomer(shop,slug=null){
- S.customerShop=shop;S.customerSlug=slug;S.cart={};S.lastFetched=Date.now();filteredCategory="All";
+ S.customerShop=shop;S.customerSlug=slug;S.cart={};S.lastFetched=Date.now();filteredCategory="All";$("backToEditor").hidden=!!slug;
  $("vendorApp").hidden=true;$("customerApp").hidden=false;document.title=(shop.name||"My shop")+" — Racharla Shops";
  $("customerName").textContent=shop.name||"Business shop";$("customerTagline").textContent=shop.tagline||shop.about||"Browse and enquire on WhatsApp";
  $("customerAddress").textContent=shop.address||"";$("customerMap").hidden=!shop.address;if(shop.address)$("customerMap").href="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(shop.address);
@@ -18,7 +18,7 @@ function showCustomer(shop,slug=null){
  if(slug)try{localStorage.setItem("rba_last_customer_shop",slug)}catch{}
  window.scrollTo({top:0,behavior:"smooth"});
 }
-A.previewCustomer=(shop)=>showCustomer(shop);
+A.previewCustomer=(shop)=>{try{history.pushState({rba:"customer_preview",rbaPrevious:S.tab,rbaDepth:(Number(history.state?.rbaDepth)||0)+1},"",location.pathname+location.search+"#customer_preview")}catch{}showCustomer(shop)};
 function renderProducts(){
  const list=products(),q=$("productSearch").value.trim().toLowerCase();
  const categories=["All",...new Set(list.map(x=>x.category||"General"))];
@@ -85,6 +85,7 @@ async function refresh({quiet=false}={}){
  if(!quiet)customerNotice("Catalog refreshed. Seller confirms final availability.");return true
  }catch(e){customerNotice("Cannot verify prices right now. Internet and active shop access are required before ordering: "+e.message);return false}
 }
+$("backToEditor").onclick=()=>{if(history.state?.rba==="customer_preview"){history.back();return}$("customerApp").hidden=true;$("vendorApp").hidden=false;A.navigate(S.tab,true)};
 $("productSearch").oninput=renderProducts;$("fulfilment").onchange=fillPayments;$("paymentMethod").onchange=showPaymentInfo;$("customerRefresh").onclick=()=>refresh();
 $("placeOrder").onclick=async()=>{
  if(opening)return;
