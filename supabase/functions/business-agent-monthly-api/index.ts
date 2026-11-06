@@ -200,8 +200,9 @@ Deno.serve(async req=>{
    const check=await availableSlugs(s,u.id,shop.model);if(!check.available)return respond({error:"This website link is already taken by another shop. Pick another link.",slug:s,suggestions:check.suggestions},409);
    const own=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,license_id&limit=1");
    const published=data.published===true;
-   if(own?.length)await patch("business_agent_shops?id=eq."+encodeURIComponent(own[0].id)+"&user_id=eq."+encodeURIComponent(u.id),{slug:s,shop_data:shop,published,updated_at:new Date().toISOString()});
-   else await post("business_agent_shops",{user_id:u.id,slug:s,shop_data:shop,published});
+   try{if(own?.length)await patch("business_agent_shops?id=eq."+encodeURIComponent(own[0].id)+"&user_id=eq."+encodeURIComponent(u.id),{slug:s,shop_data:shop,published,updated_at:new Date().toISOString()});
+   else await post("business_agent_shops",{user_id:u.id,slug:s,shop_data:shop,published});}
+   catch(e){if(String(e).includes("23505"))return respond({error:"That shop website URL was just taken. Your shop draft is safe: select another available link."},409);throw e}
    if(ent.requires_new_shop)await patch("business_agent_monthly_accounts?user_id=eq."+encodeURIComponent(u.id),{requires_new_shop:false,updated_at:new Date().toISOString()});
    return respond({ok:true,slug:s,published});
   }
