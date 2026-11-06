@@ -112,6 +112,7 @@ $("publishBtn").onclick=async()=>{
  collectBusiness();const invalid=validate();if(invalid){navigate("business");return notice(invalid)}
  if(!S.shop.products.length)return notice("Add products before publishing");
  const name=slug($("shopSlug").value);if(!/^[a-z0-9-]{3,70}$/.test(name))return notice("Choose a 3–70 character shop URL name");
+ if(slugChecked?.value!==name||!slugChecked.available){if(!(await checkSlug()))return notice("Shop URL not available. Choose a suggested unique website name.")}
  S.publishing=true;$("publishBtn").disabled=true;
  try{
   notice("Uploading images and saving your latest live catalog...");
@@ -125,6 +126,25 @@ $("publishBtn").onclick=async()=>{
  }catch(e){notice("Cannot publish: "+e.message)}
  finally{S.publishing=false;$("publishBtn").disabled=false}
 };
+let slugTimer=null,slugChecked=null;
+function showSlugResult(result){
+ const status=$("slugStatus"),suggestions=$("slugSuggestions");if(!status||!suggestions)return;
+ suggestions.replaceChildren();
+ status.textContent=result.available?"✓ This website link is available.":"That link is taken. Your shop name can stay the same; choose a different website link.";
+ status.style.color=result.available?"#18734e":"#a34c20";
+ for(const choice of result.suggestions||[]){const b=document.createElement("button");b.type="button";b.className="btn ghost";b.textContent=choice;b.onclick=()=>{$("shopSlug").value=choice;checkSlug()};suggestions.append(b)}
+}
+async function checkSlug(){
+ const value=slug($("shopSlug").value);
+ if(!/^[a-z0-9-]{3,70}$/.test(value)){slugChecked=null;$("slugStatus").textContent="Choose 3–70 letters, digits or hyphens.";return false}
+ if(!S.session?.user){$("slugStatus").textContent="Sign in to check website link availability.";return false}
+ try{$("slugStatus").textContent="Checking website link availability…";
+ const result=await call("slug_check",{slug:value,model:S.shop.model});
+ if(slug($("shopSlug").value)!==value)return false;
+ slugChecked={value,available:result.available};showSlugResult(result);return result.available
+ }catch(e){slugChecked=null;$("slugStatus").textContent="Cannot verify this shop link: "+e.message;return false}
+}
+$("shopSlug").addEventListener("input",()=>{slugChecked=null;clearTimeout(slugTimer);slugTimer=setTimeout(checkSlug,450)});
 function sharingUrl(){const url=A.getPublicLink();if(!url)notice("Publish your shop first to get a customer link");return url}
 $("catalogPublishNow").onclick=()=>{
  if(!S.entitled){navigate("billing");return notice("Activate your monthly shop access to publish these prices. Your edits remain saved on your device.")}
