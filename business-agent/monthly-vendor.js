@@ -134,8 +134,7 @@ $("catalogPublishNow").onclick=()=>{
 $("catalogOpenShop").onclick=()=>{
  const url=A.getPublicLink();
  if(!url){navigate("publish");return notice("Publish your shop first to get a customer website link.")}
- const opened=window.open(url,"_blank","noopener,noreferrer");
- if(!opened)notice("Could not open a new tab. Copy your shop link from Publish & Share.");
+ const link=document.createElement("a");link.href=url;link.target="_blank";link.rel="noopener noreferrer";document.body.append(link);link.click();link.remove();notice("Opening your published customer shop in a new tab.",true);
 };
 $("copyLink").onclick=async()=>{const url=sharingUrl();if(!url)return;try{await navigator.clipboard.writeText(url);notice("Shop link copied.",true)}catch{prompt("Copy shop link:",url)}};
 $("shareWhatsapp").onclick=()=>{const url=sharingUrl();if(url)location.href="https://wa.me/?text="+encodeURIComponent("Visit "+S.shop.name+" online shop: "+url)};
