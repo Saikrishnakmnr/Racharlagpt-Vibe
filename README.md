@@ -12,6 +12,21 @@ RacharlaGPT Vibe now focuses its public homepage on **Racharla Business Agent**.
 - Earlier Vibe product orders and renewals: `https://vibe.racharlagpt.in/legacy.html#orders`
 - Old Business Agent builder route `/business-agent/index.html` redirects to the ₹99 app and attempts to carry the existing browser-local draft forward.
 
+## Owner value and admin-controlled promotional pricing
+
+The storefront displays a crossed-out **₹499 planned regular monthly rate** with a prominent **₹99/month Launch Offer**. The planned amount is explicitly labeled **not a former selling price** unless evidence of genuine historical sales supports that wording.
+
+The actual charged monthly amount, comparison amount, comparison description, offer title, detailed offer description and optional expiry date are editable through the protected [Pricing Admin](https://vibe.racharlagpt.in/admin-pricing.html) page.
+
+- Admin verifies access with the same server-side `ADMIN_TOKEN` used by the existing Vibe admin backend. The token is **not embedded or stored** in the public UI.
+- The admin changes `business_agent_pricing` using the dedicated `business-agent-pricing-admin` Edge Function. Pricing changes are also tracked in `business_agent_pricing_audit`.
+- Current defaults: actual charge 9900 paise (₹99), planned comparison 49900 paise (₹499), reference kind `planned`.
+- The public sales page and owner checkout screen fetch the live offer and current price from the API. The actual Razorpay order amount is **always created server-side** from current pricing settings.
+- Existing unfinished Razorpay orders preserve their originally quoted price; renewal activation, recovery and refund reconciliation all use the amount recorded with the specific purchase, not a later admin price.
+- The `BUSINESS_AGENT_MONTHLY_SALES_ENABLED` gate stays OFF until payment validation and full refund testing are complete, independent of any promotional price change.
+- To describe a number as a genuine *former selling price* rather than a proposed future rate, the administrator must explicitly confirm prior actual sale history.
+- The expiry date ends the marketing badge automatically. It **does not automatically raise the actual charged price**; the admin must set a new rate deliberately.
+
 ## Pricing and cancellation
 
 **₹99 INR for one prepaid calendar month, manually renewed**. The merchant is never automatically debited for another month. They can stop by not renewing. Upon expiry, the public storefront no longer accepts new online orders, but the business details and catalog remain stored for subsequent reactivation. Renewing the same account extends its paid-through date; it does not create a second shop.
