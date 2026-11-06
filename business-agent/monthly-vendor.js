@@ -88,6 +88,13 @@ async function upload(raw,kind,max){
  if(r.error)throw Error("Photo upload failed: "+r.error.message);
  return client.storage.from("business-agent-images").getPublicUrl(path).data.publicUrl;
 }
+async function cleanupUnusedPhotos(previous,next){
+ if(!client||!S.session?.user||!previous)return;
+ const prefix=A.base+"/storage/v1/object/public/business-agent-images/"+S.session.user.id+"/";
+ const urls=shop=>[shop?.bannerImage,shop?.merchantQr,...(Array.isArray(shop?.products)?shop.products.map(p=>p.image):[])].filter(x=>typeof x==="string"&&x.startsWith(prefix));
+ const keep=new Set(urls(next));const remove=[...new Set(urls(previous).filter(x=>!keep.has(x)).map(x=>S.session.user.id+"/"+decodeURIComponent(x.slice(prefix.length))))];
+ for(let i=0;i<remove.length;i+=50){const result=await client.storage.from("business-agent-images").remove(remove.slice(i,i+50));if(result.error)throw result.error}
+}
 $("publishBtn").onclick=async()=>{
  if(S.publishing)return;
  if(!S.entitled)return notice("Activate or renew your ₹99 plan before publishing. Your draft is still saved.");
@@ -102,7 +109,7 @@ $("publishBtn").onclick=async()=>{
   draft.merchantQr=await upload(draft.merchantQr,"qr",1500000);
   for(const p of draft.products)p.image=await upload(p.image,"product",1500000);
   const r=await call("save",{shop:draft,slug:name,published:$("visibility").value==="true"});
-  S.shop=draft;persist();S.saved={slug:r.slug,published:r.published,shop_data:draft};A.displayPlan();
+  const older=S.saved?.shop_data;S.shop=draft;persist();S.saved={slug:r.slug,published:r.published,shop_data:draft};A.displayPlan();try{await cleanupUnusedPhotos(older,draft)}catch(e){/* A successful publish must not fail because cleanup is delayed. */}
   notice(r.published?"Your updated shop is published. Share the link!":"Your shop is saved privately.",true);
  }catch(e){notice("Cannot publish: "+e.message)}
  finally{S.publishing=false;$("publishBtn").disabled=false}
