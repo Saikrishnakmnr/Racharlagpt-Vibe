@@ -19,11 +19,12 @@ Deno.serve(async req=>{
  try{
   if(e.event==="payment.captured"){
    const p=e.payload?.payment?.entity;
-   if(!p?.order_id||!p?.id||p.status!=="captured"||Number(p.amount)!==9900||p.currency!=="INR")return out({ok:true,ignored:true});
-   const rows=await db("business_agent_monthly_purchases?razorpay_order_id=eq."+encodeURIComponent(String(p.order_id))+"&select=id&limit=1");
+   if(!p?.order_id||!p?.id||p.status!=="captured"||p.currency!=="INR")return out({ok:true,ignored:true});
+   const rows=await db("business_agent_monthly_purchases?razorpay_order_id=eq."+encodeURIComponent(String(p.order_id))+"&select=id,amount_paise&limit=1");
    if(!rows?.length)return out({ok:true,unrelated:true});
+   if(Number(p.amount)!==Number(rows[0].amount_paise))throw Error("Captured amount does not match recorded purchase");
    const fetched=await razorpay("payments/"+encodeURIComponent(String(p.id)));
-   if(fetched.status!=="captured"||fetched.order_id!==p.order_id||fetched.amount!==9900||fetched.currency!=="INR")throw Error("Captured payment mismatch");
+   if(fetched.status!=="captured"||fetched.order_id!==p.order_id||Number(fetched.amount)!==Number(rows[0].amount_paise)||fetched.currency!=="INR")throw Error("Captured payment mismatch");
    await db("rpc/business_agent_activate_month",{method:"POST",body:JSON.stringify({p_order_id:p.order_id,p_payment_id:p.id})});
    return out({ok:true,activated:true});
   }
@@ -32,16 +33,16 @@ Deno.serve(async req=>{
    if(!pay)return out({ok:true,ignored:true});
    const payment=await razorpay("payments/"+encodeURIComponent(pay));
    if(!payment?.order_id)return out({ok:true,ignored:true});
-   const rows=await db("business_agent_monthly_purchases?razorpay_order_id=eq."+encodeURIComponent(payment.order_id)+"&select=id,status,razorpay_payment_id&limit=1");
+   const rows=await db("business_agent_monthly_purchases?razorpay_order_id=eq."+encodeURIComponent(payment.order_id)+"&select=id,status,razorpay_payment_id,amount_paise&limit=1");
    if(!rows?.length)return out({ok:true,unrelated:true});
    const record=rows[0];
    // Aggregate all provider-processed refunds, not merely the latest event.
    const refunds=await razorpay("payments/"+encodeURIComponent(pay)+"/refunds");
    const total=(refunds.items||[]).filter((x:any)=>x.status==="processed").reduce((n:number,x:any)=>n+Number(x.amount||0),0);
-   if(total<9900)return out({ok:true,partial_refund:true});
+   if(total<Number(record.amount_paise))return out({ok:true,partial_refund:true});
    if(record.status==="created"){
     // If capture webhook was delayed, idempotently reconcile before refunding.
-    if(payment.status==="captured"&&payment.amount===9900)await db("rpc/business_agent_activate_month",{method:"POST",body:JSON.stringify({p_order_id:payment.order_id,p_payment_id:pay})});
+    if(payment.status==="captured"&&Number(payment.amount)===Number(record.amount_paise))await db("rpc/business_agent_activate_month",{method:"POST",body:JSON.stringify({p_order_id:payment.order_id,p_payment_id:pay})});
     else throw Error("Cannot reconcile captured refund");
    }
    await db("rpc/business_agent_refund_month",{method:"POST",body:JSON.stringify({p_payment_id:pay})});
