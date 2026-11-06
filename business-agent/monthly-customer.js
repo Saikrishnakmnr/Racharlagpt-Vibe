@@ -4,7 +4,7 @@ let filteredCategory="All",opening=false,pendingWhatsApp="",orderToken=null;
 const safe=x=>String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const products=()=>Array.isArray(S.customerShop?.products)?S.customerShop.products.filter(x=>x.available!==false&&x.stock!==0):[];
 function showCustomer(shop,slug=null){
- S.customerShop=shop;S.customerSlug=slug;S.cart={};orderToken=null;S.lastFetched=Date.now();filteredCategory="All";$("backToEditor").hidden=!!slug;
+ S.customerShop=shop;S.customerSlug=slug;S.cart={};orderToken=null;document.body.dataset.shopModel=String(shop.model||"general");S.lastFetched=Date.now();filteredCategory="All";$("backToEditor").hidden=!!slug;
  $("vendorApp").hidden=true;$("customerApp").hidden=false;document.title=(shop.name||"My shop")+" — Racharla Shops";
  $("customerName").textContent=shop.name||"Business shop";$("customerTagline").textContent=shop.tagline||shop.about||"Browse and enquire on WhatsApp";
  $("customerAddress").textContent=shop.address||"";$("customerMap").hidden=!shop.address;if(shop.address)$("customerMap").href="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(shop.address);
@@ -31,7 +31,7 @@ function renderProducts(){
  for(const item of display){
  const card=document.createElement("article");card.className="product-card";
  const photo=document.createElement("div");photo.className="product-photo";
- if(typeof item.image==="string"&&/^(https:\/\/|data:image\/(jpeg|png|webp);base64,)/.test(item.image)){const img=document.createElement("img");img.src=item.image;img.alt=item.name||"Product";img.loading="lazy";photo.append(img)}else photo.textContent="🛍";
+ if(typeof item.image==="string"&&/^(https:\/\/|data:image\/(jpeg|png|webp);base64,)/.test(item.image)){const img=document.createElement("img");img.src=item.image;img.alt=item.name||"Product";img.loading="lazy";photo.append(img)}else photo.textContent=({photography:"📷",salon:"💇",restaurant:"🍛",bakery:"🧁",meat:"🍗",wholesale:"📦",electronics:"📱",kirana:"🛒",vegetables:"🥬"})[S.customerShop?.model]||"🛍";
  const details=document.createElement("div");details.className="product-detail";
  const title=document.createElement("h3");title.textContent=item.name;
  const unit=document.createElement("p");unit.textContent=(item.category||"General")+" · "+(item.unit||"piece");
