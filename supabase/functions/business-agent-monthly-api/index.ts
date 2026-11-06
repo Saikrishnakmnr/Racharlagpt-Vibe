@@ -89,6 +89,7 @@ Deno.serve(async req=>{
  try{
   const action=clean(data.action,40);
   if(action==="pricing")return respond({pricing:await pricing()});
+  if(action==="availability"){const o=await operations();return respond({new_enrollment_enabled:o.new_enrollment_enabled,renewal_enabled:o.renewal_enabled,public_orders_enabled:o.public_orders_enabled,maintenance_message:o.maintenance_message,retention_days:o.retention_days})}
   if(action==="public"){
    const s=slug(data.slug);if(!/^[a-z0-9-]{3,70}$/.test(s))return err("Invalid shop URL");
    const shop=await shopForSlug(s);return shop?respond({slug:s,shop:shop.shop_data}):err("Shop unavailable or awaiting renewal",404);
