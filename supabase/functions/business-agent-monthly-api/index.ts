@@ -26,6 +26,7 @@ async function entitlement(uid:string){
  const until=mon?.[0]?.paid_through||null;
  return {active:!!legacy?.length||!!(until&&new Date(until).getTime()>Date.now()),paid_through:until,legacy:!!legacy?.length}
 }
+async function operations(){const rows=await db("business_agent_operations?id=eq.1&select=*&limit=1");if(!rows?.length)throw Error("Service settings unavailable");return rows[0]}
 async function pricing(){const rows=await db("business_agent_pricing?id=eq.1&select=monthly_amount_paise,reference_amount_paise,reference_kind,offer_label,offer_details,offer_ends_at,updated_at&limit=1");const x=rows?.[0];if(!x)throw Error("Pricing configuration missing");const isOffer=!!x.offer_label&&(!x.offer_ends_at||Date.parse(x.offer_ends_at)>Date.now());return {...x,offer_active:isOffer,monthly_amount_paise:Number(x.monthly_amount_paise),reference_amount_paise:Number(x.reference_amount_paise)}}
 async function bought(uid:string){return db("business_agent_monthly_purchases?user_id=eq."+encodeURIComponent(uid)+"&select=id,user_id,razorpay_order_id,razorpay_payment_id,amount_paise,status,created_at,period_end&order=created_at.desc&limit=30")}
 async function activate(order:string,payment:string){
