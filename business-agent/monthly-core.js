@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id),$$=s=>Array.from(document.querySelectorA
 const cfg=window.RG_CONFIG||{},base=String(cfg.SUPABASE_URL||"").replace(/\/$/,""),key=cfg.SUPABASE_PUBLISHABLE_KEY||cfg.SUPABASE_ANON_KEY||"";
 const client=window.supabase&&base&&key?window.supabase.createClient(base,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
 const apiUrl=base+"/functions/v1/business-agent-monthly-api";
-const blank=()=>({idea:"",name:"",model:"general",kind:"shop",phone:"",address:"",currency:"INR",tagline:"",about:"",offerText:"",bannerImage:"",upi:"",merchantQr:"",pickup:true,delivery:false,appointment:false,cashPickup:true,cashDelivery:false,directUpi:false,showQr:false,products:[]});
+const blank=()=>({idea:"",name:"",model:"general",kind:"shop",phone:"",address:"",currency:"INR",tagline:"",about:"",offerText:"",bannerImage:"",upi:"",merchantQr:"",pickup:true,delivery:false,deliveryFee:0,appointment:false,cashPickup:true,cashDelivery:false,directUpi:false,showQr:false,products:[]});
 const userKey=u=>"rba_monthly_owner_"+u,guestKey="rba_monthly_guest_v1";
 const format=v=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"}).format(Number(v)||0);
 const phone=p=>String(p||"").replace(/\D/g,"");
