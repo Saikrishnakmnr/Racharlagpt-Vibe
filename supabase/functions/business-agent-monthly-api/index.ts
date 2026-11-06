@@ -137,6 +137,30 @@ Deno.serve(async req=>{
    return orderResponse(order.order_number);
   }
   const u=await user(req);
+  if(action==="cleanup_status"){
+   const reqs=await db("business_agent_cleanup_requests?user_id=eq."+encodeURIComponent(u.id)+"&select=requested_at,execute_after,status,completed_at&limit=1");
+   return respond({cleanup:reqs?.[0]||null});
+  }
+  if(action==="cleanup_request"){
+   const ent=await entitlement(u.id),ops=await operations();
+   if(ent.legacy)return err("Earlier lifetime-license customer data cannot enter monthly cleanup",403);
+   const expiry=ent.paid_through?Date.parse(ent.paid_through):NaN;
+   if(!Number.isFinite(expiry)||ent.active||Date.now()<=expiry+Number(ops.retention_days)*86400000)return err("Cleanup is available only after the expired shop has passed the full retention grace period",403);
+   if(data.confirm_data_removal!=="DELETE MY OLD CATALOG")return err("Type the required confirmation before requesting cleanup",400);
+   const shops=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,slug&limit=1");
+   if(!shops?.length)return err("No hosted catalog found for this account",404);
+   const existing=await db("business_agent_cleanup_requests?user_id=eq."+encodeURIComponent(u.id)+"&select=user_id,shop_id,status&limit=1");
+   const changes={shop_id:shops[0].id,requested_at:new Date().toISOString(),execute_after:new Date(Date.now()+7*86400000).toISOString(),status:"pending",completed_at:null,last_error:null,updated_at:new Date().toISOString()};
+   if(existing?.length)await patch("business_agent_cleanup_requests?user_id=eq."+encodeURIComponent(u.id),changes);
+   else await post("business_agent_cleanup_requests",{user_id:u.id,...changes});
+   return respond({ok:true,shop_slug:shops[0].slug,execute_after:changes.execute_after,message:"Your cleanup request is recorded with a seven-day cancellation window. Existing customer orders and payment records are not deleted."});
+  }
+  if(action==="cleanup_cancel"){
+   const existing=await db("business_agent_cleanup_requests?user_id=eq."+encodeURIComponent(u.id)+"&status=eq.pending&select=*&limit=1");
+   if(!existing?.length)return err("No pending cleanup to cancel",404);
+   await patch("business_agent_cleanup_requests?user_id=eq."+encodeURIComponent(u.id)+"&status=eq.pending",{status:"cancelled",updated_at:new Date().toISOString()});
+   return respond({ok:true,message:"Cleanup request cancelled. Your catalog has not been removed."});
+  }
   if(action==="slug_check"){const value=slug(data.slug),model=clean(data.model||"general",32);if(!/^[a-z0-9-]{3,70}$/.test(value))return err("Use 3–70 lowercase letters, numbers or hyphens",400);const result=await availableSlugs(value,u.id,model);return respond({slug:value,...result,notice:result.available?"This shop link is available.":"This URL is already used. Choose a suggested alternative."})}
   if(action==="me"){
    const ent=await entitlement(u.id);
