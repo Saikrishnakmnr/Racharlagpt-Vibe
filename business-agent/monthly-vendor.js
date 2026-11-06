@@ -131,6 +131,15 @@ $("catalogPublishNow").onclick=()=>{
  if(!S.saved?.slug){navigate("publish");return notice("Choose a public shop URL, then tap Save & publish latest catalog.")}
  $("shopSlug").value=S.saved.slug; $("visibility").value="true";$("publishBtn").click();
 };
+$("catalogRestorePublished").onclick=()=>{
+ const published=S.saved?.shop_data;
+ if(!published)return notice("No published catalog found. Publish a shop first, then it can be restored on another phone.");
+ if(!confirm("Replace this device's unsaved draft with the last successfully published online shop? Any unpublished edits on this device will be lost."))return;
+ const previous=S.shop;
+ S.shop=structuredClone(published);
+ if(!persist()){S.shop=previous;return}
+ A.renderOwner();renderCatalogSync();notice("Restored your last published shop. Your products, prices and settings are loaded. Publish again after editing.",true);
+};
 $("catalogOpenShop").onclick=()=>{
  const url=A.getPublicLink();
  if(!url){navigate("publish");return notice("Publish your shop first to get a customer website link.")}
