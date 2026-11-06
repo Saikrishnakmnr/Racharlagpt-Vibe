@@ -97,7 +97,7 @@ async function cleanupUnusedPhotos(previous,next){
 }
 $("publishBtn").onclick=async()=>{
  if(S.publishing)return;
- if(!S.entitled)return notice("Activate or renew your ₹99 plan before publishing. Your draft is still saved.");
+ if(!S.entitled)return notice("Activate or renew your monthly plan before publishing. Your draft is still saved.");
  collectBusiness();const invalid=validate();if(invalid){navigate("business");return notice(invalid)}
  if(!S.shop.products.length)return notice("Add products before publishing");
  const name=slug($("shopSlug").value);if(!/^[a-z0-9-]{3,70}$/.test(name))return notice("Choose a 3–70 character shop URL name");
