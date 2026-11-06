@@ -7,7 +7,18 @@ function renderOwner(){
  $("shopSlug").value=S.saved?.slug||slug(s.name);
  renderItems();
 }
-A.renderOwner=renderOwner;
+function renderCatalogSync(){
+ const el=$("catalogSyncStatus");if(!el)return;
+ const live=S.saved?.published&&S.saved?.shop_data;
+ if(!live){el.textContent="Not published yet. Customers cannot see this catalog until you activate and publish your shop.";return}
+ const changed=JSON.stringify(S.shop)!==JSON.stringify(S.saved.shop_data);
+ el.textContent=changed?"Changes saved on this device only — customers still see the previous published prices. Tap 'Publish latest prices to customers'.":"✓ Your saved catalog matches the last published copy. Customers can refresh to see it.";
+ el.style.background=changed?"#fff2d1":"#e6f5e8";el.style.color=changed?"#5c481e":"#216243";
+}
+function markCatalogPending(){
+ const el=$("catalogSyncStatus");if(el){el.textContent="Unpublished changes: customers still see the earlier catalog. Tap 'Publish latest prices to customers' when ready.";el.style.background="#fff2d1";el.style.color="#5c481e"}
+}
+A.renderOwner=()=>{renderOwner();renderCatalogSync()};
 function collectBusiness(){const s=S.shop;for(const id of ["idea","name","model","phone","address","tagline","about","offerText"])s[id]=$(id).value.trim();s.phone=phone(s.phone);s.currency="INR";s.kind=["salon","photography"].includes(s.model)?"service":s.model==="wholesale"?"wholesale":["restaurant","meat","bakery"].includes(s.model)?"food":"shop"}
 function validate(){const s=S.shop;if(s.name.length<2)return "Enter your business name";if(s.address.length<12)return "Enter your complete shop number, street, area and city";if(!/^\d{8,15}$/.test(s.phone))return "Enter a WhatsApp phone with country code";return null}
 $("generate").onclick=()=>{
@@ -34,8 +45,8 @@ function renderItems(){
 function edit(id){const p=S.shop.products.find(x=>x.id===id);if(!p)return;editing=id;for(const [key,v] of Object.entries({itemName:p.name,itemCategory:p.category,itemPrice:p.price,itemUnit:p.unit,itemStock:p.stock??""}))$(key).value=v;$("editorTitle").textContent="Editing "+p.name;$("saveItem").textContent="Update product";$("cancelEdit").hidden=false;$("itemName").scrollIntoView({behavior:"smooth",block:"center"})}
 function clearEdit(){editing=null;for(const id of ["itemName","itemCategory","itemPrice","itemStock","itemImage"])$(id).value="";$("editorTitle").textContent="Add product or service";$("saveItem").textContent="Save product";$("cancelEdit").hidden=true}
 $("cancelEdit").onclick=clearEdit;
-function toggle(id){const p=S.shop.products.find(x=>x.id===id);if(!p)return;p.available=p.available===false;persist();renderItems();notice("Product visibility changed. Republish to update customers.",true)}
-function remove(id){const p=S.shop.products.find(x=>x.id===id);if(!p||!confirm("Delete "+p.name+"?"))return;S.shop.products=S.shop.products.filter(x=>x.id!==id);persist();renderItems();notice("Item deleted. Republish to update customers.",true)}
+function toggle(id){const p=S.shop.products.find(x=>x.id===id);if(!p)return;const was=p.available;p.available=p.available===false;if(!persist()){p.available=was;return}renderItems();markCatalogPending();notice("Product visibility changed. Republish to update customers.",true)}
+function remove(id){const p=S.shop.products.find(x=>x.id===id);if(!p||!confirm("Delete "+p.name+"?"))return;const old=S.shop.products;S.shop.products=old.filter(x=>x.id!==id);if(!persist()){S.shop.products=old;return}renderItems();markCatalogPending();notice("Item deleted. Republish to update customers.",true)}
 $("saveItem").onclick=async()=>{
  const name=$("itemName").value.trim(),price=Number($("itemPrice").value),rawStock=$("itemStock").value.trim(),stock=rawStock===""?null:Number(rawStock);
  if(!name||$("itemPrice").value.trim()===""||!Number.isFinite(price)||price<0||price>10000000)return notice("Enter a product name and a valid price");
@@ -47,7 +58,7 @@ $("saveItem").onclick=async()=>{
   const item={id:existing?.id||(crypto.randomUUID?.()||"item-"+Date.now()),name:name.slice(0,100),category:$("itemCategory").value.trim().slice(0,60)||"General",price:Math.round(price*100)/100,unit:$("itemUnit").value,stock,available:stock===0?false:(existing?.available!==false),image:image||existing?.image||""};
   if(existing)Object.assign(existing,item);else S.shop.products.push(item);
   if(!persist()){S.shop.products=JSON.parse(old);return}
-  clearEdit();renderItems();notice("Product saved. Republish for customers to get latest price.",true);
+  clearEdit();renderItems();markCatalogPending();notice("Product saved on your device. Customers will see the new price only after you publish.",true);
  }catch(e){notice("Cannot save product: "+e.message)}
 };
 $("nextOptions").onclick=()=>{if(!S.shop.products.length)return notice("Add your first product before continuing");navigate("settings")};
@@ -109,12 +120,23 @@ $("publishBtn").onclick=async()=>{
   draft.merchantQr=await upload(draft.merchantQr,"qr",1500000);
   for(const p of draft.products)p.image=await upload(p.image,"product",1500000);
   const r=await call("save",{shop:draft,slug:name,published:$("visibility").value==="true"});
-  const older=S.saved?.shop_data;S.shop=draft;persist();S.saved={slug:r.slug,published:r.published,shop_data:draft};A.displayPlan();try{await cleanupUnusedPhotos(older,draft)}catch(e){/* A successful publish must not fail because cleanup is delayed. */}
+  const older=S.saved?.shop_data;S.shop=draft;persist();S.saved={slug:r.slug,published:r.published,shop_data:draft};A.displayPlan();renderCatalogSync();try{await cleanupUnusedPhotos(older,draft)}catch(e){/* A successful publish must not fail because cleanup is delayed. */}
   notice(r.published?"Your updated shop is published. Share the link!":"Your shop is saved privately.",true);
  }catch(e){notice("Cannot publish: "+e.message)}
  finally{S.publishing=false;$("publishBtn").disabled=false}
 };
 function sharingUrl(){const url=A.getPublicLink();if(!url)notice("Publish your shop first to get a customer link");return url}
+$("catalogPublishNow").onclick=()=>{
+ if(!S.entitled){navigate("billing");return notice("Activate your monthly shop access to publish these prices. Your edits remain saved on your device.")}
+ if(!S.saved?.slug){navigate("publish");return notice("Choose a public shop URL, then tap Save & publish latest catalog.")}
+ $("shopSlug").value=S.saved.slug; $("visibility").value="true";$("publishBtn").click();
+};
+$("catalogOpenShop").onclick=()=>{
+ const url=A.getPublicLink();
+ if(!url){navigate("publish");return notice("Publish your shop first to get a customer website link.")}
+ const opened=window.open(url,"_blank","noopener,noreferrer");
+ if(!opened)notice("Could not open a new tab. Copy your shop link from Publish & Share.");
+};
 $("copyLink").onclick=async()=>{const url=sharingUrl();if(!url)return;try{await navigator.clipboard.writeText(url);notice("Shop link copied.",true)}catch{prompt("Copy shop link:",url)}};
 $("shareWhatsapp").onclick=()=>{const url=sharingUrl();if(url)location.href="https://wa.me/?text="+encodeURIComponent("Visit "+S.shop.name+" online shop: "+url)};
 $("preview").onclick=()=>{collectBusiness();if(!S.shop.name)return notice("Enter your shop name before preview");A.previewCustomer?.(structuredClone(S.shop))};
