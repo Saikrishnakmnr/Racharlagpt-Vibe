@@ -33,7 +33,7 @@ Deno.serve(async req=>{
  if(!secureEq(req.headers.get("x-admin-token")||"",ADMIN))return reply({error:"Administrator authorization required"},401);
  let body:any;try{const raw=await req.text();if(raw.length>8000)return reply({error:"Payload too large"},413);body=JSON.parse(raw)}catch{return reply({error:"Invalid JSON"},400)}
  try{
-  if(body.action==="preview")return reply({ready:await candidates(),note:"Only owner-authorized requests past the 7-day cancellation period and 60-day expiration grace are eligible."});
+  if(body.action==="preview"){const [ready,usage]=await Promise.all([candidates(),db("rpc/business_agent_storage_usage","POST",{})]);return reply({ready,usage,note:"Only owner-authorized requests past the 7-day cancellation period and 60-day expiration grace are eligible."})}
   if(body.action!=="execute")return reply({error:"Unknown action"},404);
   const uid=String(body.user_id||"");
   if(!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(uid))return reply({error:"Invalid user ID"},400);
