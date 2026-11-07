@@ -325,6 +325,25 @@
       <div id="adminLoginMsg"></div>
     </div>
     <div class="container" id="adminDashboard" hidden>
+      <div class="panel admin-section" style="margin-bottom:22px">
+        <div class="section-head"><div><span class="eyebrow">BUSINESS AGENT · PLATFORM REPORTING</span><h2>All shop websites and orders</h2></div><button class="btn btn-ghost" id="baAdminRefresh" type="button">Refresh Business Agent</button></div>
+        <p id="baAdminStatus" class="muted-small" role="status">Business Agent records load after administrator authentication. Hosting fees are separate from each shop owner's customer payments.</p>
+        <div class="stats-grid admin-stats" style="margin:16px 0">
+          <div><strong id="baAdminShops">—</strong><span>Created websites</span></div>
+          <div><strong id="baAdminPublished">—</strong><span>Published websites</span></div>
+          <div><strong id="baAdminActive">—</strong><span>Active shop owners</span></div>
+          <div><strong id="baAdminRevenue">—</strong><span>Captured ₹99 hosting fees</span></div>
+          <div><strong id="baAdminPurchases">—</strong><span>Captured hosting purchases</span></div>
+          <div><strong id="baAdminCustomerOrders">—</strong><span>Shop customer requests</span></div>
+        </div>
+        <h3>Shop owner websites</h3>
+        <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Shop</th><th>Published</th><th>Paid access through</th><th>Hosting payments</th><th>Customer orders</th><th>Created (IST)</th></tr></thead><tbody id="baAdminShopsBody"><tr><td colspan="6">Sign in as administrator to load records.</td></tr></tbody></table></div>
+        <h3 style="margin-top:24px">Business Agent hosting purchases (Razorpay)</h3>
+        <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Shop</th><th>Amount</th><th>Status</th><th>Paid / created (IST)</th></tr></thead><tbody id="baAdminHostingBody"></tbody></table></div>
+        <h3 style="margin-top:24px">Shop customer order requests (merchant-managed UPI / QR / cash)</h3>
+        <p class="muted-small">These customer orders are not platform Razorpay transactions. Shop owners verify their own customer payments.</p>
+        <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Shop</th><th>Order</th><th>Customer</th><th>Items</th><th>Amount</th><th>Order status</th><th>Payment confirmation</th><th>Placed (IST)</th></tr></thead><tbody id="baAdminCustomerOrdersBody"></tbody></table></div>
+      </div>
       <div class="stats-grid admin-stats"><div><strong id="aOrders">—</strong><span>Orders</span></div><div><strong id="aRevenue">—</strong><span>Captured payments</span></div><div><strong id="aPending">—</strong><span>Delivery pending</span></div><div><strong id="aRefunds">—</strong><span>Refund reviews</span></div></div>
       <div class="panel admin-section"><div class="section-head"><div><span class="eyebrow">ORDERS</span><h2>Payment & delivery ledger</h2></div><button class="btn btn-ghost" id="adminRefresh">Refresh</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Customer</th><th>Product</th><th>Amount</th><th>Payment</th><th>Delivery</th><th>Razorpay</th><th>Created</th><th>Action</th></tr></thead><tbody id="adminOrdersBody"></tbody></table></div></div>
       <div class="panel admin-section"><div class="section-head"><div><span class="eyebrow">REFUND REVIEWS</span><h2>No customer-side refund button</h2></div></div><p class="muted-small">Refunds are controlled here. A customer cannot issue or submit a refund from My Orders.</p><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Customer</th><th>Order</th><th>Amount</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead><tbody id="adminRefundsBody"></tbody></table></div></div>
