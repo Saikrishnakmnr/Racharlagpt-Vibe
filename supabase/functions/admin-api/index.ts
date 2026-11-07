@@ -7,6 +7,29 @@ function esc(s:string){return String(s||"").replace(/[<>&]/g,c=>({"<":"&lt;",">"
 Deno.serve(async req=>{if(req.method==="OPTIONS")return new Response("ok",{headers:cors});try{
  if(!ADMIN||req.headers.get("x-admin-token")!==ADMIN)return json({error:"Admin authorization required"},401);
  const b=await req.json(),action=String(b.action||"summary");
+ if(action==="business_agent_summary"){
+   const [shops,purchases,accounts,customerOrders]=await Promise.all([
+     db("business_agent_shops?select=id,user_id,slug,shop_data,published,created_at&order=created_at.desc&limit=1000"),
+     db("business_agent_monthly_purchases?select=id,user_id,amount_paise,currency,status,captured_at,created_at&order=created_at.desc&limit=1000"),
+     db("business_agent_monthly_accounts?select=user_id,paid_through&limit=1000"),
+     db("business_agent_customer_orders?select=id,shop_id,order_number,customer_name,items,amount_paise,status,payment_status,created_at&order=created_at.desc&limit=1000")
+   ]);
+   const paid=(purchases||[]).filter((p:any)=>p.status==="captured");
+   const active=(accounts||[]).filter((a:any)=>a.paid_through&&Date.parse(a.paid_through)>Date.now());
+   const enriched=(shops||[]).map((shop:any)=>({
+     id:shop.id,slug:shop.slug,shop_name:String(shop.shop_data?.name||shop.slug||"Unnamed shop").slice(0,140),published:shop.published,created_at:shop.created_at,
+     paid_through:(accounts||[]).find((a:any)=>a.user_id===shop.user_id)?.paid_through||null,
+     captured_purchases:paid.filter((p:any)=>p.user_id===shop.user_id).length,
+     customer_order_count:(customerOrders||[]).filter((c:any)=>c.shop_id===shop.id).length
+   }));
+   return json({stats:{shops:(shops||[]).length,published:(shops||[]).filter((x:any)=>x.published).length,
+     monthly_accounts:(accounts||[]).length,active_monthly_accounts:active.length,
+     captured_purchases:paid.length,hosting_revenue_paise:paid.reduce((n:number,x:any)=>n+Number(x.amount_paise||0),0),
+     shop_customer_orders:(customerOrders||[]).length},
+     shops:enriched,hosting_purchases:(purchases||[]).map((x:any)=>({id:x.id,shop:enriched.find((y:any)=>y.id===(shops||[]).find((z:any)=>z.user_id===x.user_id)?.id)?.shop_name||"Shop owner",amount_paise:x.amount_paise,currency:x.currency,status:x.status,captured_at:x.captured_at,created_at:x.created_at})),
+     shop_customer_orders:(customerOrders||[]).map((x:any)=>({id:x.id,order_number:x.order_number,shop:enriched.find((y:any)=>y.id===x.shop_id)?.shop_name||"Shop",customer_name:x.customer_name,items:x.items,amount_paise:x.amount_paise,status:x.status,payment_status:x.payment_status,created_at:x.created_at})),
+     list_limit:1000});
+ }
  if(action==="summary"){
    const [orders,refunds,sites]=await Promise.all([
      db("orders?select=id,razorpay_order_id,razorpay_payment_id,amount,currency,status,payment_status,payment_error,product_type,product_name,customer_email,customer_name,delivery_status,delivery_attempts,last_delivery_error,refund_status,refund_requested_at,refund_processed_at,paid_at,created_at&order=created_at.desc&limit=200"),
