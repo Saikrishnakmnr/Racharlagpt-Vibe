@@ -914,7 +914,32 @@
     if(!adminToken){login.hidden=false;dash.hidden=true;const btn=$('#adminLoginBtn'); if(btn&&!btn.dataset.bound){btn.dataset.bound='1';btn.onclick=async()=>{const v=$('#adminTokenInput')?.value||'';if(!v)return toast('Enter your Admin Token.','error');adminToken=v;try{await refreshAdmin();login.hidden=true;dash.hidden=false;toast('Admin access granted.');}catch(e){adminToken='';$('#adminLoginMsg').innerHTML=`<div class="notice notice-warning">${escapeHtml(e.message)}</div>`;}};}return;}
     login.hidden=true;dash.hidden=false;await refreshAdmin();
   }
+  function baAdminDate(value){
+    if(!value)return '—';
+    const date=new Date(value);
+    return Number.isNaN(date.getTime())?'—':date.toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Kolkata'})+' IST';
+  }
+  async function refreshBusinessAgentAdmin(){
+    const status=$('#baAdminStatus');if(!status)return;
+    status.textContent='Loading Business Agent website and order records…';
+    try{
+      const d=await adminApi('business_agent_summary'),stats=d.stats||{};
+      $('#baAdminShops').textContent=stats.shops??0;
+      $('#baAdminPublished').textContent=stats.published??0;
+      $('#baAdminActive').textContent=stats.active_monthly_accounts??0;
+      $('#baAdminRevenue').textContent=money(Number(stats.hosting_revenue_paise||0)/100);
+      $('#baAdminPurchases').textContent=stats.captured_purchases??0;
+      $('#baAdminCustomerOrders').textContent=stats.shop_customer_orders??0;
+      const shops=d.shops||[],purchases=d.hosting_purchases||[],orders=d.shop_customer_orders||[];
+      $('#baAdminShopsBody').innerHTML=shops.map(x=>`<tr><td><strong>${escapeHtml(x.shop_name||x.slug||'Unnamed shop')}</strong><br><small>${escapeHtml(x.slug||'—')}</small></td><td>${x.published?'Yes':'No'}</td><td>${baAdminDate(x.paid_through)}</td><td>${Number(x.captured_purchases||0)}</td><td>${Number(x.customer_order_count||0)}</td><td>${baAdminDate(x.created_at)}</td></tr>`).join('')||'<tr><td colspan="6">No Business Agent websites yet.</td></tr>';
+      $('#baAdminHostingBody').innerHTML=purchases.map(x=>`<tr><td>${escapeHtml(x.shop||'—')}</td><td>${money(Number(x.amount_paise||0)/100)}</td><td>${escapeHtml(x.status||'—')}</td><td>${baAdminDate(x.captured_at||x.created_at)}</td></tr>`).join('')||'<tr><td colspan="4">No monthly hosting purchases yet.</td></tr>';
+      $('#baAdminCustomerOrdersBody').innerHTML=orders.map(x=>`<tr><td>${escapeHtml(x.shop||'—')}</td><td>BA-${escapeHtml(String(x.order_number??'—').padStart(7,'0'))}</td><td>${escapeHtml(x.customer_name||'—')}</td><td>${escapeHtml((Array.isArray(x.items)?x.items:[]).map(i=>String(i.name||'Item')+' × '+String(i.qty||0)).join(', '))}</td><td>${money(Number(x.amount_paise||0)/100)}</td><td>${escapeHtml(x.status||'—')}</td><td>${escapeHtml(x.payment_status||'—')}</td><td>${baAdminDate(x.created_at)}</td></tr>`).join('')||'<tr><td colspan="8">No customer order requests yet.</td></tr>';
+      status.textContent='Live Business Agent records loaded. Hosting payments and merchant-managed customer orders are shown separately.'+(shops.length>=Number(d.list_limit||1000)||orders.length>=Number(d.list_limit||1000)?' Showing up to '+String(d.list_limit||1000)+' recent records per category.':'');
+    }catch(e){status.textContent='Could not load Business Agent reports: '+(e.message||'Please retry');}
+  }
+  $('#baAdminRefresh')?.addEventListener('click',()=>refreshBusinessAgentAdmin());
   async function refreshAdmin(){
+    refreshBusinessAgentAdmin();
     const d=await adminApi('summary');
     $('#aOrders').textContent=d.stats?.orders??0;$('#aRevenue').textContent=money(Number(d.stats?.captured_paise||0)/100);$('#aPending').textContent=d.stats?.pending??0;$('#aRefunds').textContent=d.stats?.refunds??0;
     const orders=d.orders||[], refunds=d.refunds||[];
