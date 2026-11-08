@@ -164,5 +164,34 @@ async function compress(file,dimension=700,quality=.7){
   const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));canvas.getContext("2d").drawImage(image,0,0,canvas.width,canvas.height);return canvas.toDataURL("image/jpeg",quality);
  }finally{URL.revokeObjectURL(src)}
 }
-window.RBA={$, $$,state,blank,format,phone,slug,read,persist,call,notice,customerNotice,navigate,displayPlan,refreshAccount,refreshPricing,displayPricing,authHandlers,compress,client,base,key,getPublicLink};
+// Product images use a separate size-budgeted encoder; banners and payment QR images are unchanged.
+async function compressProductImage(file){
+ if(!file)return null;
+ if(!/^image\/(png|jpeg|webp)$/.test(file.type)||file.size>5000000)throw Error("Choose a JPG, PNG or WebP photo under 5 MB");
+ const limit=50*1024; // Stored JPEG bytes, not the larger base64 data URL.
+ const src=URL.createObjectURL(file);
+ try{
+  const image=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(Error("Could not read this photo"));im.src=src});
+  const original=Math.max(image.naturalWidth,image.naturalHeight);
+  if(!original)throw Error("The photo has invalid dimensions");
+  const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{alpha:false});
+  if(!ctx)throw Error("Photo processing is unavailable in this browser");
+  // At 720px product cards remain clear on phones; reduce dimensions only when needed.
+  for(const dimension of [720,640,560,480,400,360]){
+   const scale=Math.min(1,dimension/original);
+   canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+   canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+   ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
+   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+   ctx.drawImage(image,0,0,canvas.width,canvas.height);
+   for(const quality of [.82,.74,.66,.58,.50,.43]){
+    const data=canvas.toDataURL("image/jpeg",quality);
+    const bytes=Math.floor((data.length-data.indexOf(",")-1)*3/4);
+    if(bytes<=limit)return {data,bytes,width:canvas.width,height:canvas.height};
+   }
+  }
+  throw Error("This photo is too detailed to keep clear under 50 KB. Try a simpler photo or crop around the product.");
+ }finally{URL.revokeObjectURL(src)}
+}
+window.RBA={$, $,state,blank,format,phone,slug,read,persist,call,notice,customerNotice,navigate,displayPlan,refreshAccount,refreshPricing,displayPricing,authHandlers,compress,compressProductImage,client,base,key,getPublicLink};
 })();
