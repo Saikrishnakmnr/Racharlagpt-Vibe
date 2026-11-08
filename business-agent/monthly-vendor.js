@@ -54,11 +54,12 @@ $("saveItem").onclick=async()=>{
  if(S.shop.products.length>=200&&!editing)return notice("Maximum 200 products per shop");
  try{
   const old=JSON.stringify(S.shop.products),existing=editing?S.shop.products.find(x=>x.id===editing):null;
-  const image=$("itemImage").files?.[0]?await compress($("itemImage").files[0],600,.62):null;
+  const processed=$("itemImage").files?.[0]?await A.compressProductImage($("itemImage").files[0]):null;
+  const image=processed?.data||null;
   const item={id:existing?.id||(crypto.randomUUID?.()||"item-"+Date.now()),name:name.slice(0,100),category:$("itemCategory").value.trim().slice(0,60)||"General",price:Math.round(price*100)/100,unit:$("itemUnit").value,stock,available:stock===0?false:(existing?.available!==false),image:image||existing?.image||""};
   if(existing)Object.assign(existing,item);else S.shop.products.push(item);
   if(!persist()){S.shop.products=JSON.parse(old);return}
-  clearEdit();renderItems();markCatalogPending();notice("Product saved on your device. Customers will see the new price only after you publish.",true);
+  clearEdit();renderItems();markCatalogPending();notice("Product saved"+(processed?" · photo optimized to "+(processed.bytes/1024).toFixed(1)+" KB at "+processed.width+"×"+processed.height+" pixels":"")+". Customers see changes after you publish.",true);
  }catch(e){notice("Cannot save product: "+e.message)}
 };
 $("nextOptions").onclick=()=>{if(!S.shop.products.length)return notice("Add your first product before continuing");navigate("settings")};
@@ -119,7 +120,7 @@ $("publishBtn").onclick=async()=>{
   const draft=structuredClone(S.shop);
   draft.bannerImage=await upload(draft.bannerImage,"cover",4000000);
   draft.merchantQr=await upload(draft.merchantQr,"qr",1500000);
-  for(const p of draft.products)p.image=await upload(p.image,"product",1500000);
+  for(const p of draft.products){if(typeof p.image==="string"&&p.image.startsWith("data:image/")){const bytes=Math.floor((p.image.length-p.image.indexOf(",")-1)*3/4);if(bytes>50*1024)throw Error("A product photo exceeds 50 KB. Edit that product and select the photo again to optimize it before publishing.");}p.image=await upload(p.image,"product",50*1024);}
   if(S.restartRequired&&!S.restartPrepared)throw Error("Your previous shop retention window ended. Back up your catalog, then choose Start fresh shop before publishing.");const r=await call("save",{shop:draft,slug:name,published:$("visibility").value==="true",restart_acknowledged:!!S.restartPrepared});
   const older=S.saved?.shop_data;S.shop=draft;persist();S.saved={slug:r.slug,published:r.published,shop_data:draft};S.restartRequired=false;S.restartPrepared=false;A.displayPlan();renderCatalogSync();try{await cleanupUnusedPhotos(older,draft)}catch(e){/* A successful publish must not fail because cleanup is delayed. */}
   notice(r.published?"Your updated shop is published. Share the link!":"Your shop is saved privately.",true);
