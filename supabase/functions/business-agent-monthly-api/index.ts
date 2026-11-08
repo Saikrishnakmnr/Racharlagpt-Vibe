@@ -13,6 +13,34 @@ const esc=(s:string)=>s.replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt
 async function db(path:string,init:RequestInit={}){const r=await fetch(U+"/rest/v1/"+path,{...init,headers:{"apikey":K,...(K.startsWith("sb_")?{}:{"Authorization":"Bearer "+K}),"Content-Type":"application/json",...(init.headers||{})}});const raw=await r.text();if(!r.ok)throw Error("DB:"+r.status+":"+raw.slice(0,140));return raw?JSON.parse(raw):null}
 const post=(path:string,data:unknown)=>db(path,{method:"POST",headers:{"Prefer":"return=representation"},body:JSON.stringify(data)});
 const patch=(path:string,data:unknown)=>db(path,{method:"PATCH",headers:{"Prefer":"return=representation"},body:JSON.stringify(data)});
+async function purgeClosedShop(uid:string,shopId:string){
+ const closures=await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(uid)+"&shop_id=eq."+encodeURIComponent(shopId)+"&select=shop_id,purge_status&limit=1");
+ if(!closures?.length)throw Error("Shop closure must be confirmed before deletion");
+ if(closures[0].purge_status==="completed")return {ok:true,already_completed:true,photos_removed:0};
+ const bucket="business-agent-images";
+ let removed=0;
+ try{
+  for(let page=0;page<50;page++){
+   const headers={"apikey":K,...(K.startsWith("sb_")?{}:{"Authorization":"Bearer "+K}),"Content-Type":"application/json"};
+   const listedResponse=await fetch(U+"/storage/v1/object/list/"+bucket,{method:"POST",headers,body:JSON.stringify({prefix:uid+"/",limit:100,offset:0})});
+   if(!listedResponse.ok)throw Error("Could not list shop photos: "+listedResponse.status);
+   const objects=await listedResponse.json();
+   if(!Array.isArray(objects))throw Error("Unexpected image-list response");
+   const files=objects.filter((x:any)=>typeof x.name==="string"&&x.name.length<400&&![".",".."].includes(x.name)).map((x:any)=>uid+"/"+x.name);
+   if(!files.length)break;
+   const deletion=await fetch(U+"/storage/v1/object/"+bucket,{method:"DELETE",headers,body:JSON.stringify({prefixes:files})});
+   if(!deletion.ok)throw Error("Could not remove shop photos: "+deletion.status);
+   removed+=files.length;
+   if(page===49)throw Error("Shop image cleanup needs another pass");
+  }
+  await db("business_agent_customer_orders?shop_id=eq."+encodeURIComponent(shopId),{method:"DELETE",headers:{"Prefer":"return=minimal"}});
+  await patch("business_agent_shop_closures?user_id=eq."+encodeURIComponent(uid),{purge_status:"completed",purged_at:new Date().toISOString(),photos_removed:removed,last_error:null});
+  return {ok:true,photos_removed:removed,purge_status:"completed"};
+ }catch(e){
+  await patch("business_agent_shop_closures?user_id=eq."+encodeURIComponent(uid),{purge_status:"failed",last_error:String(e).slice(0,160)}).catch(()=>{});
+  throw e;
+ }
+}
 async function user(req:Request){const token=(req.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"");if(!token)throw Error("AUTH");const r=await fetch(U+"/auth/v1/user",{headers:{"apikey":K,Authorization:"Bearer "+token}});if(!r.ok)throw Error("AUTH");const j=await r.json();if(!j.id)throw Error("AUTH");return j}
 const rpAuth=()=>({Authorization:"Basic "+btoa(RK+":"+RS),"Content-Type":"application/json"});
 async function razorpay(path:string,init:RequestInit={}){if(!RK||!RS)throw Error("Payment provider is not configured");const r=await fetch("https://api.razorpay.com/v1/"+path,{...init,headers:{...rpAuth(),...(init.headers||{})}});const j=await r.json();if(!r.ok)throw Error("Payment provider could not complete request");return j}
@@ -150,7 +178,18 @@ Deno.serve(async req=>{
    const exact=String(data.confirm_slug||"").trim();
    if(exact!==shops[0].slug)return err("Shop URL confirmation does not match your website.",400);
    const result=await db("rpc/business_agent_close_shop",{method:"POST",body:JSON.stringify({p_user_id:u.id,p_slug:exact,p_actor:"owner"})});
-   return respond({ok:true,shop_slug:exact,closed:true,purge_pending:true,message:"Your public website has been closed and the hosted catalog removed immediately. Photo files and old customer-order records require a separate permanent purge. Payment receipts are retained where required."});
+   let purged=false,photosRemoved=0,cleanupError="";
+   try{const erased=await purgeClosedShop(u.id,shops[0].id);purged=!!erased.ok;photosRemoved=erased.photos_removed||0}
+   catch(e){cleanupError="Photo and order erasure is pending. Retry in your account or ask the platform administrator."; }
+   return respond({ok:true,shop_slug:exact,closed:true,purge_pending:!purged,photos_removed:photosRemoved,refund_issued:false,message:purged?"Your shop, photos and customer-order records have been removed. The URL stays reserved. Payment receipts are retained where required.":"Your public website and catalog have been closed. "+cleanupError});
+  }
+  if(action==="shop_purge"){
+   const expected=String(data.confirm_slug||"").trim();
+   if(data.confirm_phrase!=="ERASE MY CLOSED SHOP DATA")return err("Exact erasure confirmation required",400);
+   const rows=await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(u.id)+"&slug=eq."+encodeURIComponent(expected)+"&select=shop_id,slug,purge_status&limit=1");
+   if(!rows?.length)return err("No matching closed shop belongs to this account",404);
+   const erased=await purgeClosedShop(u.id,rows[0].shop_id);
+   return respond({ok:true,purge_status:"completed",photos_removed:erased.photos_removed||0,message:"Closed shop photos and customer orders removed. Original URL stays reserved; payment receipts are retained where required."});
   }
   if(action==="cleanup_request"){
    const ent=await entitlement(u.id),ops=await operations();
