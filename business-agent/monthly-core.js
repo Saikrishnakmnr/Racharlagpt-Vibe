@@ -80,7 +80,7 @@ async function refreshAccount(){
  }
  try{
   const r=await call("me");
-  state.entitled=!!r.licensed;state.legacy=!!r.legacy;state.shopClosed=!!r.shop_closed;state.paidThrough=r.paid_through;state.salesEnabled=!!r.sales_enabled;state.restartRequired=!!r.requires_new_shop;state.retentionDeadline=r.retention_deadline||null;state.retentionDays=Number(r.retention_days)||60;state.operations=r.operations||null;if(r.pricing)state.pricing=r.pricing;displayPricing();state.saved=r.shop||null;
+  state.entitled=!!r.licensed;state.legacy=!!r.legacy;state.shopClosed=!!r.shop_closed;state.closure=r.closure||null;state.paidThrough=r.paid_through;state.salesEnabled=!!r.sales_enabled;state.restartRequired=!!r.requires_new_shop;state.retentionDeadline=r.retention_deadline||null;state.retentionDays=Number(r.retention_days)||60;state.operations=r.operations||null;if(r.pricing)state.pricing=r.pricing;displayPricing();state.saved=r.shop||null;
   if(state.shopClosed){state.shop=blank();try{localStorage.removeItem(userKey(uid))}catch(e){}}
   if(!state.shopClosed&&state.saved?.shop_data){const local=read(userKey(uid));if(!local?.name||!local?.products?.length){state.shop={...blank(),...state.saved.shop_data};persist()}}
   window.RBA?.renderOwner?.();displayPlan();window.RBA?.refreshCleanup?.();window.RBA?.refreshClosure?.();notice(state.shopClosed?"This shop was permanently closed. The original URL cannot be reactivated.":state.entitled?"Your online shop access is active. Edit and republish for current prices.":"Free shop preview available. Your data stays on this account for renewal.",state.entitled);
