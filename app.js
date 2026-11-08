@@ -931,9 +931,31 @@
       $('#baAdminPurchases').textContent=stats.captured_purchases??0;
       $('#baAdminCustomerOrders').textContent=stats.shop_customer_orders??0;
       const shops=d.shops||[],purchases=d.hosting_purchases||[],orders=d.shop_customer_orders||[];
-      $('#baAdminShopsBody').innerHTML=shops.map(x=>`<tr><td><strong>${escapeHtml(x.shop_name||x.slug||'Unnamed shop')}</strong><br><small>${escapeHtml(x.slug||'—')}</small></td><td>${x.published?'Yes':'No'}</td><td>${baAdminDate(x.paid_through)}</td><td>${Number(x.captured_purchases||0)}</td><td>${Number(x.customer_order_count||0)}</td><td>${baAdminDate(x.created_at)}</td></tr>`).join('')||'<tr><td colspan="6">No Business Agent websites yet.</td></tr>';
+      $('#baAdminShopsBody').innerHTML=shops.map(x=>`<tr><td><strong>${escapeHtml(x.shop_name||x.slug||'Unnamed shop')}</strong><br><small>${escapeHtml(x.slug||'—')}</small></td><td>${x.closure?'Closed permanently':x.published?'Yes':'No'}</td><td>${baAdminDate(x.paid_through)}</td><td>${Number(x.captured_purchases||0)}</td><td>${Number(x.customer_order_count||0)}</td><td>${baAdminDate(x.created_at)}</td><td>${x.closure?(x.closure.purge_status==='completed'?'Data erasure completed':`<button class="btn btn-ghost btn-sm" data-agent-shop-purge="1" data-user-id="${escapeHtml(x.user_id)}" data-shop-slug="${escapeHtml(x.slug)}">Erase shop files & customer orders</button>`):`<button class="btn btn-ghost btn-sm" data-agent-shop-close="1" data-user-id="${escapeHtml(x.user_id)}" data-shop-slug="${escapeHtml(x.slug)}">Permanently close shop</button>`}</td></tr>`).join('')||'<tr><td colspan="7">No Business Agent websites yet.</td></tr>';
       $('#baAdminHostingBody').innerHTML=purchases.map(x=>`<tr><td>${escapeHtml(x.shop||'—')}</td><td>${money(Number(x.amount_paise||0)/100)}</td><td>${escapeHtml(x.status||'—')}</td><td>${baAdminDate(x.captured_at||x.created_at)}</td></tr>`).join('')||'<tr><td colspan="4">No monthly hosting purchases yet.</td></tr>';
       $('#baAdminCustomerOrdersBody').innerHTML=orders.map(x=>`<tr><td>${escapeHtml(x.shop||'—')}</td><td>BA-${escapeHtml(String(x.order_number??'—').padStart(7,'0'))}</td><td>${escapeHtml(x.customer_name||'—')}</td><td>${escapeHtml((Array.isArray(x.items)?x.items:[]).map(i=>String(i.name||'Item')+' × '+String(i.qty||0)).join(', '))}</td><td>${money(Number(x.amount_paise||0)/100)}</td><td>${escapeHtml(x.status||'—')}</td><td>${escapeHtml(x.payment_status||'—')}</td><td>${baAdminDate(x.created_at)}</td></tr>`).join('')||'<tr><td colspan="8">No customer order requests yet.</td></tr>';
+      $('[data-agent-shop-close]').forEach(btn=>btn.onclick=async()=>{
+        const slug=btn.dataset.shopSlug,uid=btn.dataset.userId;
+        const typed=prompt('CLOSE SHOP PERMANENTLY. This closes the public website immediately and deletes its hosted catalog. There is NO automatic hosting refund. Customer order records and images need a separate purge.\n\nType the EXACT shop URL name:\n'+slug);
+        if(typed!==slug)return;
+        const phrase=prompt('FINAL CONFIRMATION: Type PERMANENTLY CLOSE SHOP');
+        if(phrase!=='PERMANENTLY CLOSE SHOP')return;
+        if(!confirm('Permanently close '+slug+' and reserve its old URL? This cannot be reversed.'))return;
+        btn.disabled=true;
+        try{await adminApi('business_agent_close',{user_id:uid,slug,confirm_phrase:phrase});toast('Shop closed permanently. Purge customer data separately if needed.');await refreshBusinessAgentAdmin();}
+        catch(e){toast('Could not close shop: '+e.message,'error');btn.disabled=false;}
+      });
+      $('[data-agent-shop-purge]').forEach(btn=>btn.onclick=async()=>{
+        const slug=btn.dataset.shopSlug,uid=btn.dataset.userId;
+        const typed=prompt('PERMANENT CUSTOMER DATA ERASURE\n\nThis deletes the closed shop’s uploaded photos and all its customer order records. Payment receipts, the authentication account and minimal closure record remain. This cannot be undone.\n\nType the exact shop URL name:\n'+slug);
+        if(typed!==slug)return;
+        const phrase=prompt('FINAL CONFIRMATION: Type ERASE SHOP CUSTOMER DATA');
+        if(phrase!=='ERASE SHOP CUSTOMER DATA')return;
+        if(!confirm('Erase all available customer orders and uploaded shop photos for '+slug+'? This action cannot be reversed.'))return;
+        btn.disabled=true;
+        try{const result=await adminApi('business_agent_purge',{user_id:uid,slug,confirm_phrase:phrase});toast('Erasure completed. '+Number(result.photos_removed||0)+' shop photos removed. Hosting receipts retained.');await refreshBusinessAgentAdmin();}
+        catch(e){toast('Data erasure incomplete: '+e.message,'error');btn.disabled=false;}
+      });
       status.textContent='Live Business Agent records loaded. Hosting payments and merchant-managed customer orders are shown separately.'+(shops.length>=Number(d.list_limit||1000)||orders.length>=Number(d.list_limit||1000)?' Showing up to '+String(d.list_limit||1000)+' recent records per category.':'');
     }catch(e){status.textContent='Could not load Business Agent reports: '+(e.message||'Please retry');}
   }
