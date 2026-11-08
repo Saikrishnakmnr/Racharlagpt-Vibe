@@ -88,16 +88,72 @@ async function refreshAccount(){
 async function auth(kind){
  if(!client)throw Error("Cloud sign-in unavailable");
  const email=$("email").value.trim(),password=$("password").value;
- if(!email||password.length<8)throw Error("Enter email and a password of at least 8 characters");
- const r=kind==="signup"?await client.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}}):await client.auth.signInWithPassword({email,password});
- if(r.error)throw r.error;await refreshAccount();
- notice(kind==="signup"?"Account created. Confirm your email if required, then sign in.":"Signed in.",true);
+ if(!email||password.length<8)throw Error("Enter a valid email and password of at least 8 characters");
+ if(kind==="signup"){
+  const r=await client.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}});
+  if(r.error){
+   if(r.error.code==="user_already_exists"||/already registered/i.test(r.error.message||""))throw Error("This email already has a Vibe account. Choose Sign in, Continue with Google (if used before), or Forgot password.");
+   throw r.error;
+  }
+  await refreshAccount();
+  if(r.data?.session)notice("Account created and signed in. You can now build your shop.",true);
+  else notice("Account created. Check your email for a confirmation link, then return and sign in. If no email arrives, check spam or contact support.",true);
+  return;
+ }
+ const r=await client.auth.signInWithPassword({email,password});
+ if(r.error){
+  if(r.error.code==="invalid_credentials"||/invalid login credentials/i.test(r.error.message||""))throw Error("Email or password not recognized. If you previously used Google, choose Continue with Google. Otherwise use Forgot password.");
+  if(/email not confirmed/i.test(r.error.message||""))throw Error("Please confirm your email from the signup message before signing in.");
+  throw r.error;
+ }
+ await refreshAccount();
+ notice("Signed in. Your saved shop and monthly access have been loaded.",true);
+}
+function showPasswordRecovery(show){
+ const panel=$("passwordRecoveryPanel");
+ if(panel)panel.hidden=!show;
+ if(show)panel?.scrollIntoView({block:"center",behavior:"smooth"});
 }
 function authHandlers(){
  $("loginBtn").onclick=()=>auth("signin").catch(e=>notice(e.message));
  $("signupBtn").onclick=()=>auth("signup").catch(e=>notice(e.message));
  $("googleBtn").onclick=async()=>{if(!client)return notice("Google sign-in unavailable");const r=await client.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname}});if(r.error)notice(r.error.message)};
- $("logoutBtn").onclick=async()=>{persist();try{localStorage.removeItem(guestKey)}catch(e){}await client.auth.signOut();state.ownerId=null;state.shop=blank();await refreshAccount();notice("Signed out; private shop data is no longer shown.",true)};
+ $("resetPasswordBtn").onclick=async()=>{
+  if(!client)return notice("Password recovery is unavailable");
+  const email=$("email").value.trim();
+  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return notice("Enter your account email in the Email field, then choose Forgot password.");
+  const btn=$("resetPasswordBtn");btn.disabled=true;
+  try{
+   const r=await client.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname+"?password_recovery=1"});
+   if(r.error)throw r.error;
+   notice("If this email has a password account, a recovery link has been requested. Check your inbox and spam folder. Google-only customers can use Continue with Google.",true);
+  }catch(e){notice("Password recovery could not be sent: "+(e.message||"Please retry"))}finally{btn.disabled=false}
+ };
+ $("saveNewPassword").onclick=async()=>{
+  if(!client)return notice("Password recovery is unavailable");
+  const password=$("newPassword").value,confirmation=$("confirmNewPassword").value;
+  if(password.length<8)return notice("Your new password must contain at least 8 characters.");
+  if(password!==confirmation)return notice("The two new passwords do not match.");
+  const btn=$("saveNewPassword");btn.disabled=true;
+  try{
+   const session=(await client.auth.getSession()).data.session;
+   if(!session)throw Error("Recovery link expired or has not been verified. Request another password reset email.");
+   const result=await client.auth.updateUser({password});
+   if(result.error)throw result.error;
+   $("newPassword").value="";$("confirmNewPassword").value="";
+   showPasswordRecovery(false);
+   try{const url=new URL(location.href);url.searchParams.delete("password_recovery");history.replaceState(history.state,"",url.pathname+url.search+url.hash)}catch{}
+   await refreshAccount();
+   notice("Password updated successfully. Your saved shop is available in this account.",true);
+  }catch(e){notice("Password update failed: "+(e.message||"Try requesting a new reset link."))}finally{btn.disabled=false}
+ };
+ client?.auth.onAuthStateChange((event)=>{
+  if(event==="PASSWORD_RECOVERY"){showPasswordRecovery(true);notice("Recovery link verified. Enter and save your new password.",true)}
+ });
+ if(new URLSearchParams(location.search).get("password_recovery")==="1"||location.hash.includes("type=recovery")){
+  client.auth.getSession().then(({data})=>{if(data.session){showPasswordRecovery(true);notice("Enter a new password to finish account recovery.",true)}});
+ }
+ $("logoutBtn").onclick=async()=>{persist();try{localStorage.removeItem(guestKey)}catch(e){}await client.auth.signOut();state.ownerId=null;state.shop=blank();showPasswordRecovery(false);await refreshAccount();notice("Signed out; private shop data is no longer shown.",true)};
 }
 async function compress(file,dimension=700,quality=.7){
  if(!file)return null;if(!/^image\/(png|jpeg|webp)$/.test(file.type)||file.size>5000000)throw Error("Choose a JPG, PNG or WebP under 5 MB");
