@@ -76,7 +76,7 @@ async function recover(uid:string){
 async function availableSlugs(wanted:string,uid:string,model:string){const base=slug(wanted),prefix=base.slice(0,60).replace(/-+$/,"");const proposals=[prefix,prefix+"-"+(model==="general"?"store":slug(model)),prefix+"-shop",prefix+"-2",prefix+"-3",prefix+"-4",prefix+"-5",prefix+"-6"].filter((x,i,a)=>x!==base&&x.length<=70&&/^[a-z0-9-]{3,70}$/.test(x)&&a.indexOf(x)===i);
  const found=await db("business_agent_shops?slug=in.("+[base,...proposals].map(encodeURIComponent).join(",")+")&select=slug,user_id");const used=new Map((found||[]).map((p:any)=>[p.slug,p.user_id]));return {available:!used.has(base)||used.get(base)===uid,suggestions:proposals.filter(x=>!used.has(x)||used.get(x)===uid).slice(0,3)}}
 async function shopForSlug(s:string){
- const rows=await db("business_agent_shops?slug=eq."+encodeURIComponent(s)+"&published=eq.true&select=id,user_id,slug,shop_data&limit=1");
+ const rows=await db("business_agent_shops?slug=eq."+encodeURIComponent(s)+"&published=eq.true&select=id,user_id,slug,shop_data,temporarily_closed,temporary_close_message&limit=1");
  const shop=rows?.[0];if(!shop)return null;
  const license=await entitlement(shop.user_id);if(!license.active||license.requires_new_shop)return null;return shop;
 }
@@ -123,13 +123,13 @@ Deno.serve(async req=>{
   if(action==="availability"){const o=await operations();return respond({new_enrollment_enabled:o.new_enrollment_enabled,renewal_enabled:o.renewal_enabled,public_orders_enabled:o.public_orders_enabled,maintenance_message:o.maintenance_message,retention_days:o.retention_days})}
   if(action==="public"){
    const s=slug(data.slug);if(!/^[a-z0-9-]{3,70}$/.test(s))return err("Invalid shop URL");
-   const shop=await shopForSlug(s);return shop?respond({slug:s,shop:shop.shop_data}):err("Shop unavailable or awaiting renewal",404);
+   const shop=await shopForSlug(s);if(!shop)return err("Shop unavailable or awaiting renewal",404);if(shop.temporarily_closed)return respond({slug:s,temporarily_closed:true,shop:{name:shop.shop_data?.name||"This shop"},message:shop.temporary_close_message||"This shop is temporarily closed. Please check back later."}});return respond({slug:s,temporarily_closed:false,shop:shop.shop_data});
   }
   if(action==="order"){
    const ops=await operations();if(!ops.public_orders_enabled)return err("Online orders are temporarily paused. Please contact the shop directly.",503);
    if(!data.consent)return err("Customer consent required for order details",400);
    const s=slug(data.slug);if(!/^[a-z0-9-]{3,70}$/.test(s))return err("Invalid shop");
-   const row=await shopForSlug(s);if(!row)return err("Shop unavailable or awaiting renewal",404);
+   const row=await shopForSlug(s);if(!row)return err("Shop unavailable or awaiting renewal",404);if(row.temporarily_closed)return err("This shop is temporarily closed and is not accepting new orders. Please check back later.",423);
    const shop=row.shop_data,fulfillment=clean(data.fulfillment,30),pay=clean(data.payment_method,30);
    if(!["pickup","delivery","appointment"].includes(fulfillment)||!shop[fulfillment])return err("Fulfilment option unavailable");
    if(!["cash_pickup","cash_delivery","upi","qr","confirm"].includes(pay))return err("Invalid payment option");
@@ -169,6 +169,22 @@ Deno.serve(async req=>{
   if(action==="cleanup_status"){
    const reqs=await db("business_agent_cleanup_requests?user_id=eq."+encodeURIComponent(u.id)+"&select=requested_at,execute_after,status,completed_at&limit=1");
    return respond({cleanup:reqs?.[0]||null});
+  }
+  if(action==="shop_availability"){
+   const closure=await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(u.id)+"&select=user_id&limit=1");
+   if(closure?.length)return err("A permanently closed shop cannot reopen.",410);
+   const existing=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,published,temporarily_closed,temporary_close_message&limit=1");
+   if(!existing?.length)return err("Publish your website before using the temporary close switch.",404);
+   const paused=data.temporarily_closed;
+   if(typeof paused!=="boolean")return err("Specify whether the shop should be temporarily closed.",400);
+   if(!paused){
+     const ent=await entitlement(u.id);
+     if(!ent.active||!existing[0].published)return err("Reopening requires an active prepaid month and a published shop.",403);
+   }
+   const message=String(data.message||"This shop is temporarily closed. Please check back later.").trim();
+   if(message.length<10||message.length>160)return err("Closure message must be 10–160 characters.",400);
+   await patch("business_agent_shops?id=eq."+encodeURIComponent(existing[0].id)+"&user_id=eq."+encodeURIComponent(u.id),{temporarily_closed:paused,temporary_close_message:message,updated_at:new Date().toISOString()});
+   return respond({ok:true,temporarily_closed:paused,message:paused?"Your shop is temporarily closed to customers. Existing orders are preserved.":"Your published shop is open to customers again."});
   }
   if(action==="shop_close_status"){const rows=await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(u.id)+"&select=slug,closed_at,purge_status&limit=1");return respond({closure:rows?.[0]||null});}
   if(action==="shop_close"){
@@ -214,7 +230,7 @@ Deno.serve(async req=>{
   if(action==="slug_check"){const closed=await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(u.id)+"&select=user_id&limit=1");if(closed?.length)return err("This shop was permanently closed. Its original URL cannot be reactivated.",410);const value=slug(data.slug),model=clean(data.model||"general",32);if(!/^[a-z0-9-]{3,70}$/.test(value))return err("Use 3–70 lowercase letters, numbers or hyphens",400);const result=await availableSlugs(value,u.id,model);return respond({slug:value,...result,notice:result.available?"This shop link is available.":"This URL is already used. Choose a suggested alternative."})}
   if(action==="me"){
    const ent=await entitlement(u.id);
-   const shops=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,slug,published,shop_data&limit=1");
+   const shops=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,slug,published,shop_data,temporarily_closed,temporary_close_message&limit=1");
    const price=await pricing(),ops=await operations();const cutoff=ent.paid_through&&Date.parse(ent.paid_through)>0?new Date(Date.parse(ent.paid_through)+Number(ops.retention_days)*86400000).toISOString():null;return respond({licensed:ent.active,paid_through:ent.paid_through,legacy:ent.legacy,shop_closed:ent.closed,closure:ent.closure,requires_new_shop:ent.requires_new_shop,retention_deadline:cutoff,retention_days:ops.retention_days,operations:{new_enrollment_enabled:ops.new_enrollment_enabled,renewal_enabled:ops.renewal_enabled,public_orders_enabled:ops.public_orders_enabled,maintenance_message:ops.maintenance_message},sales_enabled:Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")==="true",shop:shops?.[0]||null,user_email:u.email||null,price_paise:price.monthly_amount_paise,pricing:price,renewal_mode:"manual_prepaid"});
   }
   if(action==="checkout"){
