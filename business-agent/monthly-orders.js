@@ -90,6 +90,30 @@ async function load(){
    const status=document.createElement("p");
    status.textContent="Order: "+label(o.status,o.fulfillment)+" · Payment: "+(o.payment_status==="verified"?"Received (owner-confirmed)":o.payment_status==="unverified"?"Not verified by owner":o.payment_status||"Unknown")+(o.delivery_address?" · Address: "+o.delivery_address:"");
    card.append(p,placed,details,items,note,status);
+   const history=document.createElement("details");
+   history.style.cssText="margin:10px 0;padding:10px 12px;border:1px solid #dce9df;border-radius:9px;background:#f7fbf8";
+   const summary=document.createElement("summary");
+   summary.textContent="Order activity history"+(Array.isArray(o.history)&&o.history.length?" ("+o.history.length+" recent changes)":"");
+   summary.style.cssText="cursor:pointer;font-weight:750";
+   history.append(summary);
+   const timeline=document.createElement("div");
+   timeline.style.cssText="margin-top:10px;display:grid;gap:8px";
+   const events=Array.isArray(o.history)?o.history:[];
+   for(const e of events){
+    const line=document.createElement("p");line.className="muted";line.style.margin="0";
+    const d=new Date(e.at);
+    const when=Number.isNaN(d.getTime())?"Date unknown":new Intl.DateTimeFormat("en-IN",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Kolkata"}).format(d)+" IST";
+    const eventLabel=e.kind==="created"?"Order request created":e.kind==="payment_status"?"Payment status: "+(e.to==="verified"?"Received (owner-confirmed)":String(e.to||"Unknown")):e.kind==="order_status"?"Order changed to: "+label(e.to,o.fulfillment):"Order activity";
+    line.textContent=when+" — "+eventLabel;
+    timeline.append(line);
+   }
+   if(!events.length){
+    const fallback=document.createElement("p");fallback.className="muted";
+    fallback.textContent="Status history is recorded for new changes. Earlier status changes cannot be reconstructed.";
+    timeline.append(fallback);
+   }
+   history.append(timeline);
+   card.append(history);
    const actions=document.createElement("div");actions.className="row";
    for(const to of flows[o.fulfillment]?.[o.status]||[]){
     const b=document.createElement("button");b.className="btn ghost";b.textContent=label(to,o.fulfillment);
