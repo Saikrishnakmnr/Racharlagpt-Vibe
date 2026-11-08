@@ -55,7 +55,7 @@ Deno.serve(async req=>{if(req.method==="OPTIONS")return new Response("ok",{heade
      db("business_agent_shop_closures?select=user_id,shop_id,slug,closed_at,purge_status,purged_at&limit=1000")
    ]);
    const paid=(purchases||[]).filter((p:any)=>p.status==="captured");
-   const active=(accounts||[]).filter((a:any)=>a.paid_through&&Date.parse(a.paid_through)>Date.now());
+   const active=(accounts||[]).filter((a:any)=>a.paid_through&&Date.parse(a.paid_through)>Date.now()&&!(closures||[]).some((c:any)=>c.user_id===a.user_id));
    const enriched=(shops||[]).map((shop:any)=>({
      id:shop.id,user_id:shop.user_id,slug:shop.slug,shop_name:String(shop.shop_data?.name||shop.slug||"Unnamed shop").slice(0,140),published:shop.published,created_at:shop.created_at,closure:(closures||[]).find((c:any)=>c.user_id===shop.user_id)||null,
      paid_through:(accounts||[]).find((a:any)=>a.user_id===shop.user_id)?.paid_through||null,
