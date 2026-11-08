@@ -159,6 +159,34 @@ function downloadCatalogBackup(){
   notice("Catalog backup downloaded. Keep the file somewhere safe before resetting your shop.",true);return true;
  }catch(e){notice("Unable to create backup: "+e.message);return false}
 }
+function refreshClosure(){
+ const box=$("permanentShopClosure"),button=$("closeMyShop"),status=$("closeShopStatus");
+ if(!box||!button||!status)return;
+ const hasShop=!!S.saved?.slug;
+ box.hidden=!S.session?.user||(!hasShop&&!S.shopClosed);
+ button.hidden=!!S.shopClosed;
+ status.textContent=S.shopClosed?"This shop is closed permanently. The public website is offline and the original URL remains reserved. Contact platform support for an erasure request. Payment receipts may be kept for required records.":"For permanent closure, back up your catalog and confirm your exact shop URL. The site and catalog are taken offline immediately; deleting photo files and customer orders is a separate admin-controlled step.";
+}
+A.refreshClosure=refreshClosure;
+$("closeMyShop").onclick=async()=>{
+ if(!S.session?.user||!S.saved?.slug||S.shopClosed)return notice("Sign in to the active owner account to close your own shop.");
+ const currentSlug=S.saved.slug;
+ if(!confirm("PERMANENT SHOP CLOSURE\n\nYour website will go offline immediately. Its public catalog will be removed and the URL will never be reactivated for this shop. There is no automatic refund of the paid hosting fee.\n\nPhoto files and customer-order data require a separate administrator purge; billing records may be retained.\n\nContinue to the required confirmations?"))return;
+ if(!downloadCatalogBackup())return;
+ const entered=prompt("Confirm YOUR exact shop website name (URL slug):\n"+currentSlug+"\n\nType it exactly to continue:");
+ if(entered!==currentSlug)return notice("Closure cancelled: URL did not match exactly.");
+ const phrase=prompt("FINAL PERMANENT CONFIRMATION\n\nType PERMANENTLY CLOSE MY SHOP\n\nYour shop cannot be restored or repurchased at the same URL:");
+ if(phrase!=="PERMANENTLY CLOSE MY SHOP")return notice("Closure cancelled: exact phrase required.");
+ if(!confirm("FINAL CHECK: Permanently close "+currentSlug+" now? This will immediately take the public site offline, with no automatic refund."))return;
+ const button=$("closeMyShop");button.disabled=true;
+ try{
+  const result=await call("shop_close",{confirm_slug:entered,confirm_phrase:phrase});
+  if(!result.closed)throw Error("Server did not confirm closure.");
+  S.shop=A.blank();S.saved=null;S.entitled=false;S.shopClosed=true;
+  await A.refreshAccount();refreshClosure();
+  notice("Shop permanently closed. Its URL is offline and cannot be reactivated. Contact platform admin for photo and customer-order data erasure.",true);
+ }catch(e){notice("Could not close shop safely: "+e.message)}finally{button.disabled=false}
+};
 async function refreshCleanup(){
  const box=$("cleanupControls"),status=$("cleanupStatus");
  if(!box||!S.session?.user){if(box)box.hidden=true;return}
