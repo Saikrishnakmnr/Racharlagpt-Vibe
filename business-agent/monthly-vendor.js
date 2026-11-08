@@ -159,6 +159,35 @@ function downloadCatalogBackup(){
   notice("Catalog backup downloaded. Keep the file somewhere safe before resetting your shop.",true);return true;
  }catch(e){notice("Unable to create backup: "+e.message);return false}
 }
+function refreshPauseControls(){
+ const box=$("shopPauseControls"),button=$("shopPauseButton"),message=$("shopPauseMessage"),status=$("shopPauseStatus");
+ if(!box||!button||!message||!status)return;
+ const available=!!S.session?.user&&!!S.saved?.slug&&!!S.saved?.published&&!S.shopClosed;
+ box.hidden=!available;
+ if(!available)return;
+ const paused=!!S.saved.temporarily_closed;
+ button.textContent=paused?"Reopen my shop to customers":"Temporarily close my shop";
+ message.value=S.saved.temporary_close_message||"This shop is temporarily closed. Please check back later.";
+ status.textContent=paused?"Shop is temporarily CLOSED. Customers see your notice and cannot place new orders. Your paid period continues.":"Shop is OPEN to customers. You can pause new orders whenever needed.";
+}
+A.refreshPauseControls=refreshPauseControls;
+$("shopPauseButton").onclick=async()=>{
+ if(!S.session?.user||!S.saved?.slug||S.shopClosed)return notice("Sign in and publish your shop before changing its availability.");
+ const paused=!S.saved.temporarily_closed;
+ const message=$("shopPauseMessage").value.trim();
+ if(message.length<10||message.length>160)return notice("Use a clear closure message between 10 and 160 characters.");
+ const warning=paused?"Temporarily close "+S.saved.slug+"? Customers will see your message and cannot browse or place new orders. Existing orders and your prepaid month are NOT cancelled.":"Reopen "+S.saved.slug+"? Customers will be able to browse and place orders again, provided your prepaid hosting period is still active.";
+ if(!confirm(warning))return;
+ const btn=$("shopPauseButton");btn.disabled=true;
+ try{
+  const result=await call("shop_availability",{temporarily_closed:paused,message});
+  if(!result.ok)throw Error("Could not confirm availability change.");
+  await A.refreshAccount();
+  notice(result.message,true);
+ }catch(e){notice("Unable to update shop availability: "+e.message)}
+ finally{btn.disabled=false}
+};
+$("shopPauseRefresh").onclick=()=>A.refreshAccount();
 function refreshClosure(){
  const box=$("permanentShopClosure"),button=$("closeMyShop"),status=$("closeShopStatus");
  if(!box||!button||!status)return;
