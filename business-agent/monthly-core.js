@@ -10,7 +10,7 @@ const format=v=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"})
 const phone=p=>String(p||"").replace(/\D/g,"");
 const slug=s=>String(s||"").trim().toLowerCase().replace(/[^a-z0-9-]/g,"-").replace(/^-+|-+$/g,"").slice(0,70);
 function read(k){try{const x=JSON.parse(localStorage.getItem(k)||"null");return x&&Array.isArray(x.products)?{...blank(),...x}:null}catch{return null}}
-const state={ownerId:null,shop:read(guestKey)||blank(),session:null,entitled:false,legacy:false,paidThrough:null,salesEnabled:false,pricing:{monthly_amount_paise:9900,reference_amount_paise:49900,reference_kind:"planned",offer_label:"Launch offer",offer_details:"Introductory offer for shop owners.",offer_active:true},saved:null,retentionDeadline:null,retentionDays:60,restartRequired:false,restartPrepared:false,operations:null,tab:"overview",customerSlug:null,customerShop:null,cart:{},lastFetched:0,paying:false,publishing:false};
+const state={ownerId:null,shop:read(guestKey)||blank(),session:null,entitled:false,legacy:false,shopClosed:false,paidThrough:null,salesEnabled:false,pricing:{monthly_amount_paise:9900,reference_amount_paise:49900,reference_kind:"planned",offer_label:"Launch offer",offer_details:"Introductory offer for shop owners.",offer_active:true},saved:null,retentionDeadline:null,retentionDays:60,restartRequired:false,restartPrepared:false,operations:null,tab:"overview",customerSlug:null,customerShop:null,cart:{},lastFetched:0,paying:false,publishing:false};
 function notice(s,good=false){const el=$("notice");if(el){el.textContent=s;el.classList.toggle("success",!!good)}}
 function customerNotice(s){const el=$("customerOrderStatus");if(el)el.textContent=s}
 function persist(){
@@ -55,11 +55,11 @@ function displayRetention(){
 }
 function displayPlan(){
  const end=state.paidThrough?new Date(state.paidThrough):null;
- const monthly="₹"+((Number(state.pricing?.monthly_amount_paise)||9900)/100).toLocaleString("en-IN",{maximumFractionDigits:2});const text=state.legacy?"Your earlier one-time purchase remains honored":state.entitled?"Active through "+(end?.toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})||"your prepaid period"):"No active monthly access — "+monthly+" per prepaid month";
+ const monthly="₹"+((Number(state.pricing?.monthly_amount_paise)||9900)/100).toLocaleString("en-IN",{maximumFractionDigits:2});const text=state.shopClosed?"Shop permanently closed — its URL cannot be reactivated":state.legacy?"Your earlier one-time purchase remains honored":state.entitled?"Active through "+(end?.toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})||"your prepaid period"):"No active monthly access — "+monthly+" per prepaid month";
  $("accountSummary").textContent=state.session?.user?"Signed in as "+state.session.user.email+" · "+text:"Sign in to publish and manage your shop.";
  $("billingExpiry").textContent=text;$("planSummary").textContent=text;
- $("payBtn").disabled=state.legacy;$("payBtn").textContent=state.legacy?"Existing purchase recognized":state.entitled?"Extend by 1 month · "+monthly:"Activate 1 month · "+monthly;
- $("publishStatus").textContent=state.entitled?"Your paid shop is active. Publish your current catalog when ready.":"Your shop will be paused until you activate or renew a paid month. Your saved data is retained.";
+ $("payBtn").disabled=state.legacy||state.shopClosed;$("payBtn").textContent=state.shopClosed?"Closed — no further payments":state.legacy?"Existing purchase recognized":state.entitled?"Extend by 1 month · "+monthly:"Activate 1 month · "+monthly;
+ $("publishStatus").textContent=state.shopClosed?"This shop has been closed permanently. Its published catalog and URL cannot be restored.":state.entitled?"Your paid shop is active. Publish your current catalog when ready.":"Your shop will be paused until you activate or renew a paid month. Your saved data is retained.";
  $("publicLink").value=getPublicLink();displayRetention();
 }
 async function refreshAccount(){
@@ -67,7 +67,7 @@ async function refreshAccount(){
  state.session=(await client.auth.getSession()).data.session;const signed=!!state.session?.user;
  for(const id of ["loginFields","loginBtn","signupBtn","googleBtn"])$(id).hidden=signed;
  $("logoutBtn").hidden=!signed;
- if(!signed){state.ownerId=null;state.entitled=false;state.legacy=false;state.paidThrough=null;state.salesEnabled=false;state.restartRequired=false;state.retentionDeadline=null;state.operations=null;state.saved=null;state.shop=read(guestKey)||blank();window.RBA?.renderOwner?.();displayPlan();if($("cleanupControls"))$("cleanupControls").hidden=true;return}
+ if(!signed){state.ownerId=null;state.entitled=false;state.legacy=false;state.shopClosed=false;state.paidThrough=null;state.salesEnabled=false;state.restartRequired=false;state.retentionDeadline=null;state.operations=null;state.saved=null;state.shop=read(guestKey)||blank();window.RBA?.renderOwner?.();displayPlan();if($("cleanupControls"))$("cleanupControls").hidden=true;return}
  const uid=state.session.user.id;
  if(state.ownerId!==uid){
   if(state.ownerId)persist();
@@ -80,9 +80,10 @@ async function refreshAccount(){
  }
  try{
   const r=await call("me");
-  state.entitled=!!r.licensed;state.legacy=!!r.legacy;state.paidThrough=r.paid_through;state.salesEnabled=!!r.sales_enabled;state.restartRequired=!!r.requires_new_shop;state.retentionDeadline=r.retention_deadline||null;state.retentionDays=Number(r.retention_days)||60;state.operations=r.operations||null;if(r.pricing)state.pricing=r.pricing;displayPricing();state.saved=r.shop||null;
-  if(state.saved?.shop_data){const local=read(userKey(uid));if(!local?.name||!local?.products?.length){state.shop={...blank(),...state.saved.shop_data};persist()}}
-  window.RBA?.renderOwner?.();displayPlan();window.RBA?.refreshCleanup?.();notice(state.entitled?"Your online shop access is active. Edit and republish for current prices.":"Free shop preview available. Your data stays on this account for renewal.",state.entitled);
+  state.entitled=!!r.licensed;state.legacy=!!r.legacy;state.shopClosed=!!r.shop_closed;state.paidThrough=r.paid_through;state.salesEnabled=!!r.sales_enabled;state.restartRequired=!!r.requires_new_shop;state.retentionDeadline=r.retention_deadline||null;state.retentionDays=Number(r.retention_days)||60;state.operations=r.operations||null;if(r.pricing)state.pricing=r.pricing;displayPricing();state.saved=r.shop||null;
+  if(state.shopClosed){state.shop=blank();try{localStorage.removeItem(userKey(uid))}catch(e){}}
+  if(!state.shopClosed&&state.saved?.shop_data){const local=read(userKey(uid));if(!local?.name||!local?.products?.length){state.shop={...blank(),...state.saved.shop_data};persist()}}
+  window.RBA?.renderOwner?.();displayPlan();window.RBA?.refreshCleanup?.();window.RBA?.refreshClosure?.();notice(state.shopClosed?"This shop was permanently closed. The original URL cannot be reactivated.":state.entitled?"Your online shop access is active. Edit and republish for current prices.":"Free shop preview available. Your data stays on this account for renewal.",state.entitled);
  }catch(e){state.entitled=false;state.salesEnabled=false;displayPlan();notice("Cannot check plan: "+e.message)}
 }
 async function auth(kind){
