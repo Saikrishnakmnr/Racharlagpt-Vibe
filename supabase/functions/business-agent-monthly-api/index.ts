@@ -213,10 +213,20 @@ Deno.serve(async req=>{
   if(action==="order_update"){
    const id=clean(data.id,60),status=clean(data.status,40),payment=clean(data.payment_status,40);
    if(!/^[a-f0-9-]{36}$/.test(id))return err("Invalid order");
-   const owns=await db("business_agent_customer_orders?id=eq."+encodeURIComponent(id)+"&user_id=eq."+encodeURIComponent(u.id)+"&select=id,status,payment_status&limit=1");
+   const owns=await db("business_agent_customer_orders?id=eq."+encodeURIComponent(id)+"&user_id=eq."+encodeURIComponent(u.id)+"&select=id,status,payment_status,fulfillment,payment_method&limit=1");
    if(!owns?.length)return err("Order not found",404);
-   const previous=owns[0],transitions:any={awaiting_confirmation:["accepted","cancelled"],accepted:["packed","ready","out_for_delivery","completed","cancelled"],packed:["ready","out_for_delivery","completed","cancelled"],ready:["out_for_delivery","completed","cancelled"],out_for_delivery:["completed","cancelled"],completed:[],cancelled:[]};
-   if(status&&!transitions[previous.status]?.includes(status))return err("This order status change is not allowed");
+   const previous=owns[0];
+   // Enforce per-fulfillment steps server-side; the frontend is not a security boundary.
+   const steps:Record<string,Record<string,string[]>>={
+     pickup:{awaiting_confirmation:["accepted","cancelled"],accepted:["packed","ready","cancelled"],packed:["ready","cancelled"],ready:["completed","cancelled"],completed:[],cancelled:[]},
+     delivery:{awaiting_confirmation:["accepted","cancelled"],accepted:["packed","cancelled"],packed:["ready","out_for_delivery","cancelled"],ready:["out_for_delivery","cancelled"],out_for_delivery:["completed","cancelled"],completed:[],cancelled:[]},
+     appointment:{awaiting_confirmation:["accepted","cancelled"],accepted:["completed","cancelled"],completed:[],cancelled:[]}
+   };
+   const transitions=steps[previous.fulfillment];
+   if(!transitions)return err("Unrecognized order fulfilment method. Contact support.",400);
+   if(status&&!transitions[previous.status]?.includes(status))return err("This "+previous.fulfillment+" order cannot move from "+previous.status+" to "+status+". Follow the available steps.",409);
+   // Do not treat an unpaid cash-on-collection order as complete.
+   if(status==="completed"&&["cash_pickup","cash_delivery"].includes(previous.payment_method)&&previous.payment_status!=="verified"&&payment!=="verified")return err("Confirm you have actually received the customer's cash before completing this order.",409);
    if(payment&&!["unverified","verified","pay_on_collection","refunded"].includes(payment))return err("Invalid payment status");
    if(payment==="refunded"&&previous.payment_status!=="verified")return err("Verify the original payment before recording refund");
    const changes:any={updated_at:new Date().toISOString()};
