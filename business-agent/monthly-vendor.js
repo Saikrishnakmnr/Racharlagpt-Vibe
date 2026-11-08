@@ -165,7 +165,10 @@ function refreshClosure(){
  const hasShop=!!S.saved?.slug;
  box.hidden=!S.session?.user||(!hasShop&&!S.shopClosed);
  button.hidden=!!S.shopClosed;
- status.textContent=S.shopClosed?"This shop is closed permanently. The public website is offline and the original URL remains reserved. Contact platform support for an erasure request. Payment receipts may be kept for required records.":"For permanent closure, back up your catalog and confirm your exact shop URL. The site and catalog are taken offline immediately; deleting photo files and customer orders is a separate admin-controlled step.";
+ const purge=S.closure?.purge_status;
+ status.textContent=S.shopClosed?(purge==="completed"?"Shop permanently closed. Public catalog, photos and customer order records removed. The original URL remains reserved; payment records may be retained.":"Shop permanently closed. Its public site is offline and the original URL remains reserved. Photo/customer-order erasure is pending; you can retry securely below."):"For permanent closure, back up your catalog and confirm your exact shop URL. Closure takes the website offline, then attempts to erase photos and customer-order records. Required payment receipts remain.";
+ const retry=$("retryShopPurge");
+ if(retry)retry.hidden=!S.shopClosed||purge==="completed";
 }
 A.refreshClosure=refreshClosure;
 $("closeMyShop").onclick=async()=>{
@@ -184,8 +187,22 @@ $("closeMyShop").onclick=async()=>{
   if(!result.closed)throw Error("Server did not confirm closure.");
   S.shop=A.blank();S.saved=null;S.entitled=false;S.shopClosed=true;
   await A.refreshAccount();refreshClosure();
-  notice("Shop permanently closed. Its URL is offline and cannot be reactivated. Contact platform admin for photo and customer-order data erasure.",true);
+  notice(result.purge_pending?"Shop closed immediately. Some photos/orders still need erasure; use Retry erasure in Monthly plan or contact support.":"Shop closed. Its public catalog, uploaded photos and customer order records were removed. The URL cannot be reused. Billing records may be retained.",true);
  }catch(e){notice("Could not close shop safely: "+e.message)}finally{button.disabled=false}
+};
+$("retryShopPurge").onclick=async()=>{
+ if(!S.shopClosed||!S.closure?.slug)return notice("No closed shop is available for erasure.");
+ const slug=S.closure.slug;
+ const confirmSlug=prompt("This permanently deletes remaining uploaded photos and customer order records for your closed shop. Billing receipts may be kept.\n\nEnter your closed shop URL name exactly:\n"+slug);
+ if(confirmSlug!==slug)return notice("Erasure cancelled: URL did not match.");
+ const phrase=prompt("Final data erasure confirmation. Type exactly: ERASE MY CLOSED SHOP DATA");
+ if(phrase!=="ERASE MY CLOSED SHOP DATA")return notice("Erasure cancelled: exact phrase required.");
+ const button=$("retryShopPurge");button.disabled=true;
+ try{
+  await call("shop_purge",{confirm_slug:slug,confirm_phrase:phrase});
+  await A.refreshAccount();
+  notice("Remaining shop photos and customer order records erased. Billing receipts and the reserved URL remain.",true);
+ }catch(e){notice("Erasure incomplete: "+e.message+". You can retry or contact platform support.")}finally{button.disabled=false}
 };
 async function refreshCleanup(){
  const box=$("cleanupControls"),status=$("cleanupStatus");
