@@ -1,1 +1,149 @@
-(()=>{"use strict";const A=window.RBA;if(!A)return;const {$,state:S,call,notice,format}=A;const next={awaiting_confirmation:["accepted","cancelled"],accepted:["packed","ready","out_for_delivery","completed","cancelled"],packed:["ready","out_for_delivery","completed","cancelled"],ready:["out_for_delivery","completed","cancelled"],out_for_delivery:["completed","cancelled"],completed:[],cancelled:[]};async function load(){if(!S.session?.user){$("ordersStatus").textContent="Sign in to view orders";return}try{const r=await call("orders");const orders=r.orders||[];$("ordersStatus").textContent=orders.length+" recent order requests";$("ordersList").replaceChildren();for(const o of orders){const card=document.createElement("article");card.className="order-card";const p=document.createElement("p");p.textContent="BA-"+String(o.order_number).padStart(7,"0")+" · "+o.customer_name+" · "+o.customer_phone+" · "+format(o.amount_paise/100);const placed=document.createElement("p");placed.className="muted";const when=new Date(o.created_at);placed.textContent=Number.isNaN(when.getTime())?"Order date unavailable":"Ordered: "+new Intl.DateTimeFormat("en-IN",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Kolkata"}).format(when)+" IST";const details=document.createElement("p");details.className="muted";const fulfilmentNames={pickup:"Pickup at shop",delivery:"Home delivery",appointment:"Appointment / enquiry"};const paymentNames={cash_pickup:"Cash at pickup",cash_delivery:"Cash on delivery",upi:"Shop owner UPI",qr:"Shop owner QR",confirm:"Discuss with shop owner"};details.textContent="Fulfilment: "+(fulfilmentNames[o.fulfillment]||o.fulfillment||"Not specified")+" · Payment choice: "+(paymentNames[o.payment_method]||o.payment_method||"Not specified");const note=document.createElement("p");note.className="muted";note.textContent=o.note?"Customer note: "+o.note:"";note.hidden=!o.note;const items=document.createElement("p");items.textContent=(o.items||[]).map(x=>x.name+" × "+x.qty).join(", ");const status=document.createElement("p");status.textContent="Order: "+o.status+" · Payment: "+o.payment_status+(o.delivery_address?" · Address: "+o.delivery_address:"");const actions=document.createElement("div");actions.className="row";for(const to of next[o.status]||[]){const b=document.createElement("button");b.className="btn ghost";b.textContent=to.replaceAll("_"," ");b.onclick=async()=>{if(to==="cancelled"&&o.payment_status==="verified"&&!confirm("This order was marked paid. Cancelling does NOT refund the customer. Please arrange any refund separately and confirm you understand."))return;const changed=await update(o.id,{status:to},to==="cancelled");if(changed&&to==="cancelled"){const phone=String(o.customer_phone||"").replace(/\D/g,"");if(phone.length>=8&&phone.length<=15){const msg="Hello "+o.customer_name+", thank you for your order BA-"+String(o.order_number).padStart(7,"0")+". Unfortunately, some items are unavailable today and we cannot fulfill this order. Please try again later or ask us about alternatives. Thank you for understanding — "+(S.shop?.name||"Your shop");location.assign("https://wa.me/"+phone+"?text="+encodeURIComponent(msg))}}};actions.append(b)}if(o.payment_status!=="verified"){const safety=document.createElement("p");safety.className="muted";safety.style.cssText="width:100%;padding:10px 12px;border:1px solid #e5c67a;border-radius:8px;background:#fff8e4;color:#654814";safety.textContent="Important: Vibe does not check your customer payments. First verify that money has actually reached your UPI / QR / bank account, or that cash has been received. Never mark a payment received based only on a screenshot or promise.";card.append(safety);const b=document.createElement("button");b.className="btn";b.textContent="I have received the payment";b.onclick=async()=>{if(!confirm("Have you personally checked and RECEIVED this payment?\n\nCheck your bank / UPI transaction history, or count the cash in hand. Vibe cannot verify it.\n\nSelect OK ONLY if you have actually received the money."))return;const changed=await update(o.id,{payment_status:"verified"},false);if(changed)notice("Payment marked received. Use Notify customer on WhatsApp to send a message; Vibe does not send it automatically.",true)};actions.append(b)}const phone=String(o.customer_phone||"").replace(/\D/g,"");if(phone.length>=8&&phone.length<=15&&o.payment_status==="verified"){const notify=document.createElement("button");notify.className="btn ghost";notify.textContent="💬 Notify customer: payment received";notify.onclick=()=>{const ref="BA-"+String(o.order_number).padStart(7,"0"),shopName=S.shop?.name||"our shop";const msg="Hello "+o.customer_name+", this is "+shopName+". We confirm receiving payment for order "+ref+" ("+format(o.amount_paise/100)+"). Order status: "+String(o.status||"awaiting_confirmation").replaceAll("_"," ")+". Thank you!";location.assign("https://wa.me/"+phone+"?text="+encodeURIComponent(msg))};actions.append(notify)}if(phone.length>=8&&phone.length<=15){const contact=document.createElement("button");contact.className="btn ghost";contact.textContent="💬 Message customer on WhatsApp";contact.onclick=()=>{const shopName=S.shop?.name||"your shop",ref="BA-"+String(o.order_number).padStart(7,"0"),stage=String(o.status||"awaiting_confirmation").replaceAll("_"," ");const message="Hello "+o.customer_name+", this is "+shopName+". Your order "+ref+" is currently: "+stage+". Please contact us to confirm the final price, payment and delivery or pickup. Thank you.";location.assign("https://wa.me/"+phone+"?text="+encodeURIComponent(message))};actions.append(contact)}card.append(p,placed,details,items,note,status,actions);$("ordersList").append(card)}}catch(e){$("ordersStatus").textContent="Cannot load orders: "+e.message}}async function update(id,change,confirmFirst){if(confirmFirst&&!confirm("Please verify the actual payment or cancellation before changing status."))return;try{await call("order_update",{id,...change});await load();notice("Order status updated.",true);return true}catch(e){notice(e.message);return false}}$("refreshOrders").onclick=load;A.loadOrders=load;})();
+(()=>{
+"use strict";
+const A=window.RBA;
+if(!A)return;
+const {$,state:S,call,notice,format}=A;
+
+const flows={
+ pickup:{
+  awaiting_confirmation:["accepted","cancelled"],
+  accepted:["packed","ready","cancelled"],
+  packed:["ready","cancelled"],
+  ready:["completed","cancelled"],
+  completed:[],cancelled:[]
+ },
+ delivery:{
+  awaiting_confirmation:["accepted","cancelled"],
+  accepted:["packed","cancelled"],
+  packed:["ready","out_for_delivery","cancelled"],
+  ready:["out_for_delivery","cancelled"],
+  out_for_delivery:["completed","cancelled"],
+  completed:[],cancelled:[]
+ },
+ appointment:{
+  awaiting_confirmation:["accepted","cancelled"],
+  accepted:["completed","cancelled"],
+  completed:[],cancelled:[]
+ }
+};
+const paymentChoices={cash_pickup:"Cash at pickup",cash_delivery:"Cash on delivery",upi:"Shop owner UPI",qr:"Shop owner QR",confirm:"Discuss with shop owner"};
+const fulfilments={pickup:"Pickup at shop",delivery:"Home delivery",appointment:"Appointment / enquiry"};
+const statusLabels={
+ awaiting_confirmation:"Waiting for shop acceptance",
+ accepted:"Accepted",
+ packed:"Packed",
+ ready:"Ready",
+ out_for_delivery:"Out for delivery",
+ completed:"Completed",
+ cancelled:"Cancelled"
+};
+function label(status,fulfillment){
+ if(status==="ready")return fulfillment==="pickup"?"Ready for pickup":"Ready for dispatch";
+ if(status==="completed")return fulfillment==="pickup"?"Collected / completed":fulfillment==="appointment"?"Service completed":"Delivered / completed";
+ return statusLabels[status]||String(status||"Unknown").replaceAll("_"," ");
+}
+const ref=o=>"BA-"+String(o.order_number).padStart(7,"0");
+const phoneFor=o=>String(o.customer_phone||"").replace(/\D/g,"");
+function whatsappUrl(o,message){
+ const phone=phoneFor(o);
+ return phone.length>=8&&phone.length<=15?"https://wa.me/"+phone+"?text="+encodeURIComponent(message):"";
+}
+function messageFor(o,newStatus){
+ const shopName=S.shop?.name||"the shop",reference=ref(o),status=newStatus||o.status;
+ const greeting="Hello "+o.customer_name+", this is "+shopName+".\nOrder: "+reference+"\n";
+ let body;
+ switch(status){
+  case "accepted":body="Your order has been accepted. We will update you when it is ready.";break;
+  case "packed":body="Your items are packed. We will update you about pickup or dispatch.";break;
+  case "ready":body=o.fulfillment==="pickup"?"Your order is READY FOR PICKUP. Please visit the shop.": "Your order is ready for dispatch. We will confirm delivery details.";break;
+  case "out_for_delivery":body="Your order is out for delivery. Please be available to receive it.";break;
+  case "completed":body=o.fulfillment==="pickup"?"Your order has been collected and completed. Thank you!":o.fulfillment==="appointment"?"Your service or appointment is completed. Thank you!":"Your order has been delivered and completed. Thank you!";break;
+  case "cancelled":body="Unfortunately, your order has been cancelled. If you already paid, please contact the shop to arrange a refund directly.";break;
+  default:body="Your order status is: "+label(status,o.fulfillment)+".";
+ }
+ return greeting+body+"\nThank you!";
+}
+function startWhatsApp(o,message){
+ const url=whatsappUrl(o,message);
+ if(!url){notice("No valid customer WhatsApp number is saved for this order.");return}
+ // WhatsApp links open a draft only. The owner must tap Send.
+ location.assign(url);
+}
+async function load(){
+ if(!S.session?.user){$("ordersStatus").textContent="Sign in to view orders";return}
+ try{
+  const r=await call("orders"),orders=r.orders||[];
+  $("ordersStatus").textContent=orders.length+" recent order requests";
+  $("ordersList").replaceChildren();
+  for(const o of orders){
+   const card=document.createElement("article");card.className="order-card";
+   const p=document.createElement("p");
+   p.textContent=ref(o)+" · "+o.customer_name+" · "+o.customer_phone+" · "+format(o.amount_paise/100);
+   const placed=document.createElement("p");placed.className="muted";
+   const when=new Date(o.created_at);
+   placed.textContent=Number.isNaN(when.getTime())?"Order date unavailable":"Ordered: "+new Intl.DateTimeFormat("en-IN",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Kolkata"}).format(when)+" IST";
+   const details=document.createElement("p");details.className="muted";
+   details.textContent="Fulfilment: "+(fulfilments[o.fulfillment]||o.fulfillment||"Not specified")+" · Payment choice: "+(paymentChoices[o.payment_method]||o.payment_method||"Not specified");
+   const items=document.createElement("p");
+   items.textContent=(o.items||[]).map(x=>x.name+" × "+x.qty).join(", ");
+   const note=document.createElement("p");note.className="muted";note.hidden=!o.note;note.textContent=o.note?"Customer note: "+o.note:"";
+   const status=document.createElement("p");
+   status.textContent="Order: "+label(o.status,o.fulfillment)+" · Payment: "+(o.payment_status==="verified"?"Received (owner-confirmed)":o.payment_status==="unverified"?"Not verified by owner":o.payment_status||"Unknown")+(o.delivery_address?" · Address: "+o.delivery_address:"");
+   card.append(p,placed,details,items,note,status);
+   const actions=document.createElement("div");actions.className="row";
+   for(const to of flows[o.fulfillment]?.[o.status]||[]){
+    const b=document.createElement("button");b.className="btn ghost";b.textContent=label(to,o.fulfillment);
+    b.onclick=async()=>{
+     if(to==="cancelled"&&o.payment_status==="verified"&&!confirm("This order is marked paid. Cancellation does NOT refund money. You must arrange any applicable refund with the customer directly. Continue cancelling?"))return;
+     if(to==="completed"&&["cash_pickup","cash_delivery"].includes(o.payment_method)&&o.payment_status!=="verified"){
+      notice("Cash payment has not been confirmed. Receive the cash first, use 'I have received the payment', then complete this order.");return;
+     }
+     const changed=await update(o.id,{status:to});
+     if(!changed)return;
+     if(whatsappUrl(o,"test")){
+      if(confirm("Order updated to: "+label(to,o.fulfillment)+".\n\nWould you like to OPEN WhatsApp with an update for this customer? You must tap Send yourself.\n\nOK = Open WhatsApp | Cancel = Skip notification")){
+       startWhatsApp(o,messageFor(o,to));
+      }else notice("Order status saved. Customer was NOT notified. You can use Message customer on WhatsApp later.",true);
+     }else notice("Order status saved. No valid customer number is available for WhatsApp.",true);
+    };
+    actions.append(b);
+   }
+   if(o.payment_status!=="verified"){
+    const warning=document.createElement("p");warning.className="muted";
+    warning.style.cssText="width:100%;padding:10px 12px;border:1px solid #e5c67a;border-radius:8px;background:#fff8e4;color:#654814";
+    warning.textContent="Important: Vibe does NOT verify payments by your customers. Check money in your UPI, bank account or cash in hand first. Never confirm based on a screenshot or promise.";
+    card.append(warning);
+    const b=document.createElement("button");b.className="btn";b.textContent="I have received the payment";
+    b.onclick=async()=>{
+     if(!confirm("Have you personally received and verified the customer's payment?\n\nCheck the actual UPI / bank transaction or count the cash. Press OK only after real receipt."))return;
+     const changed=await update(o.id,{payment_status:"verified"});
+     if(changed)notice("Payment marked received. WhatsApp is not sent automatically; use Notify customer: payment received if you wish.",true);
+    };
+    actions.append(b);
+   }
+   if(whatsappUrl(o,"test")){
+    if(o.payment_status==="verified"){
+     const b=document.createElement("button");b.className="btn ghost";b.textContent="💬 Notify customer: payment received";
+     b.onclick=()=>startWhatsApp(o,"Hello "+o.customer_name+", this is "+(S.shop?.name||"the shop")+". We confirm receiving payment for order "+ref(o)+" ("+format(o.amount_paise/100)+"). Order status: "+label(o.status,o.fulfillment)+". Thank you!");
+     actions.append(b);
+    }
+    const contact=document.createElement("button");contact.className="btn ghost";contact.textContent="💬 Message customer on WhatsApp";
+    contact.onclick=()=>startWhatsApp(o,messageFor(o,o.status));
+    actions.append(contact);
+   }
+   if(o.status==="completed"||o.status==="cancelled"){
+    const terminal=document.createElement("p");terminal.className="muted";
+    terminal.textContent="This order is "+label(o.status,o.fulfillment)+". Changes to its fulfilment status are closed; the message button is still available.";
+    card.append(terminal);
+   }
+   card.append(actions);$("ordersList").append(card);
+  }
+ }catch(e){$("ordersStatus").textContent="Cannot load orders: "+e.message}
+}
+async function update(id,change){
+ try{await call("order_update",{id,...change});await load();notice("Order status updated.",true);return true}
+ catch(e){notice(e.message);return false}
+}
+$("refreshOrders").onclick=load;
+A.loadOrders=load;
+})();
