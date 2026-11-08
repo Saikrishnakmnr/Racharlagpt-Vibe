@@ -123,7 +123,7 @@ Deno.serve(async req=>{
   if(action==="availability"){const o=await operations();return respond({new_enrollment_enabled:o.new_enrollment_enabled,renewal_enabled:o.renewal_enabled,public_orders_enabled:o.public_orders_enabled,maintenance_message:o.maintenance_message,retention_days:o.retention_days})}
   if(action==="public"){
    const s=slug(data.slug);if(!/^[a-z0-9-]{3,70}$/.test(s))return err("Invalid shop URL");
-   const shop=await shopForSlug(s);if(!shop)return err("Shop unavailable or awaiting renewal",404);if(shop.temporarily_closed)return respond({slug:s,temporarily_closed:true,shop:{name:shop.shop_data?.name||"This shop"},message:shop.temporary_close_message||"This shop is temporarily closed. Please check back later."}});return respond({slug:s,temporarily_closed:false,shop:shop.shop_data});
+   const shop=await shopForSlug(s);if(!shop)return err("Shop unavailable or awaiting renewal",404);if(shop.temporarily_closed)return respond({slug:s,temporarily_closed:true,shop:{name:shop.shop_data?.name||"This shop"},message:shop.temporary_close_message||"This shop is temporarily closed. Please check back later."});return respond({slug:s,temporarily_closed:false,shop:shop.shop_data});
   }
   if(action==="order"){
    const ops=await operations();if(!ops.public_orders_enabled)return err("Online orders are temporarily paused. Please contact the shop directly.",503);
