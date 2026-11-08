@@ -193,5 +193,5 @@ async function compressProductImage(file){
   throw Error("This photo is too detailed to keep clear under 50 KB. Try a simpler photo or crop around the product.");
  }finally{URL.revokeObjectURL(src)}
 }
-window.RBA={$, $,state,blank,format,phone,slug,read,persist,call,notice,customerNotice,navigate,displayPlan,refreshAccount,refreshPricing,displayPricing,authHandlers,compress,compressProductImage,client,base,key,getPublicLink};
+window.RBA={$, $$,state,blank,format,phone,slug,read,persist,call,notice,customerNotice,navigate,displayPlan,refreshAccount,refreshPricing,displayPricing,authHandlers,compress,compressProductImage,client,base,key,getPublicLink};
 })();
