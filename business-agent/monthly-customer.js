@@ -3,7 +3,29 @@
 let filteredCategory="All",opening=false,pendingWhatsApp="",orderToken=null;let deferredInstall=null,installed=false;
 const safe=x=>String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const products=()=>Array.isArray(S.customerShop?.products)?S.customerShop.products.filter(x=>x.available!==false&&x.stock!==0):[];
+function showTemporarilyClosed(res,slug){
+ S.customerSlug=slug;S.customerShop=null;S.cart={};orderToken=null;
+ $("vendorApp").hidden=true;$("customerApp").hidden=false;
+ $("customerApp").classList.add("shop-paused");
+ $("shopClosedName").textContent=res.shop?.name||"Shop temporarily closed";
+ $("shopClosedText").textContent=res.message||"This shop is temporarily closed. Please check back later.";
+ document.title=($("shopClosedName").textContent||"Shop")+" — Temporarily closed";
+ $("placeOrder").disabled=true;
+ $("shopClosedNotice").hidden=false;
+ S.lastFetched=Date.now();
+}
+$("shopClosedCheckAgain").onclick=async()=>{
+ const slug=S.customerSlug;if(!slug)return;
+ $("shopClosedText").textContent="Checking whether this shop has reopened…";
+ try{
+  const data=await call("public",{slug},false);
+  if(data.temporarily_closed)showTemporarilyClosed(data,slug);
+  else {showCustomer(data.shop,slug);customerNotice("The shop has reopened. Refresh prices and review your selections before ordering.");}
+ }catch(e){$("shopClosedText").textContent="Unable to check the shop right now. Please try again later.";}
+};
 function showCustomer(shop,slug=null){
+ $("customerApp").classList.remove("shop-paused");$("shopClosedNotice").hidden=true;
+ $("placeOrder").disabled=false;
  S.customerShop=shop;S.customerSlug=slug;S.cart={};orderToken=null;document.body.dataset.shopModel=String(shop.model||"general");S.lastFetched=Date.now();filteredCategory="All";$("backToEditor").hidden=!!slug;
  $("vendorApp").hidden=true;$("customerApp").hidden=false;document.title=(shop.name||"My shop")+" — Racharla Shops";
  $("customerName").textContent=shop.name||"Business shop";$("customerTagline").textContent=shop.tagline||shop.about||"Browse and enquire on WhatsApp";
@@ -80,8 +102,11 @@ function renderCart(){
 async function refresh({quiet=false}={}){
  if(!S.customerSlug)return true;
  try{if(!quiet)customerNotice("Checking latest prices and stock…");
- const res=await call("public",{slug:S.customerSlug},false),old=JSON.stringify(S.customerShop),next=JSON.stringify(res.shop);
- S.lastFetched=Date.now();if(old!==next){showCustomer(res.shop,S.customerSlug);customerNotice("Prices or products were updated. Please select your items again.");return false}
+ const res=await call("public",{slug:S.customerSlug},false);
+ if(res.temporarily_closed){showTemporarilyClosed(res,S.customerSlug);return false}
+ const old=JSON.stringify(S.customerShop),next=JSON.stringify(res.shop);
+ S.lastFetched=Date.now();
+ if($("customerApp").classList.contains("shop-paused")||old!==next){showCustomer(res.shop,S.customerSlug);customerNotice("Shop or products have changed. Please review your items again.");return false}
  if(!quiet)customerNotice("Catalog refreshed. Seller confirms final availability.");return true
  }catch(e){customerNotice("Cannot verify prices right now. Internet and active shop access are required before ordering: "+e.message);return false}
 }
@@ -89,6 +114,7 @@ $("backToEditor").onclick=()=>{if(history.state?.rba==="customer_preview"){histo
 $("productSearch").oninput=renderProducts;$("fulfilment").onchange=fillPayments;$("paymentMethod").onchange=showPaymentInfo;$("customerRefresh").onclick=()=>refresh();
 $("placeOrder").onclick=async()=>{
  if(opening)return;
+ if($("customerApp").classList.contains("shop-paused"))return customerNotice("This shop is temporarily closed and cannot accept new orders.");
  if(!S.customerSlug)return customerNotice("Preview only. Publish an active shop for real customer orders.");
  const s=S.customerShop,selected=products().filter(p=>S.cart[p.id]>0);
  if(!selected.length)return customerNotice("Please select at least one product or service.");
@@ -134,7 +160,7 @@ addEventListener("appinstalled",()=>{installed=true;deferredInstall=null;$("cust
 addEventListener("focus",()=>{if(S.customerSlug&&Date.now()-S.lastFetched>45000)refresh({quiet:true})});
 A.initCustomer=async()=>{const u=new URL(location.href);let slug=u.searchParams.get("shop");if(!slug&&u.searchParams.get("launch")==="shop")try{slug=localStorage.getItem("rba_last_customer_shop")}catch{}
  if(!slug)return false;if(!/^[a-z0-9-]{3,70}$/.test(slug)){customerNotice("Invalid shop link.");return true}
- try{const data=await call("public",{slug},false);showCustomer(data.shop,slug)}catch(e){$("vendorApp").hidden=true;$("customerApp").hidden=false;customerNotice("This shop is not currently taking orders. The owner may need to renew ₹99/month. "+e.message)}
+ try{const data=await call("public",{slug},false);if(data.temporarily_closed)showTemporarilyClosed(data,slug);else showCustomer(data.shop,slug)}catch(e){$("vendorApp").hidden=true;$("customerApp").hidden=false;customerNotice("This shop is not currently taking orders. The owner may need to renew ₹99/month. "+e.message)}
  return true;
 };
 })();
