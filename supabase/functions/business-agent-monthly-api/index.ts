@@ -207,8 +207,16 @@ Deno.serve(async req=>{
    return respond({ok:true,slug:s,published});
   }
   if(action==="orders"){
-   const rows=await db("business_agent_customer_orders?user_id=eq."+encodeURIComponent(u.id)+"&select=id,order_number,customer_name,customer_phone,delivery_address,fulfillment,payment_method,items,amount_paise,status,payment_status,created_at,note&order=created_at.desc&limit=100");
-   return respond({orders:rows||[]});
+   const [rows,events]=await Promise.all([
+     db("business_agent_customer_orders?user_id=eq."+encodeURIComponent(u.id)+"&select=id,order_number,customer_name,customer_phone,delivery_address,fulfillment,payment_method,items,amount_paise,status,payment_status,created_at,note&order=created_at.desc&limit=100"),
+     db("business_agent_customer_order_events?user_id=eq."+encodeURIComponent(u.id)+"&select=order_id,event_kind,old_value,new_value,created_at&order=created_at.desc&limit=800")
+   ]);
+   const eventsByOrder:Record<string,any[]>={};
+   for(const event of events||[]){
+     if(!eventsByOrder[event.order_id])eventsByOrder[event.order_id]=[];
+     eventsByOrder[event.order_id].push({kind:event.event_kind,from:event.old_value,to:event.new_value,at:event.created_at});
+   }
+   return respond({orders:(rows||[]).map((order:any)=>({...order,history:(eventsByOrder[order.id]||[]).slice(0,30)}))});
   }
   if(action==="order_update"){
    const id=clean(data.id,60),status=clean(data.status,40),payment=clean(data.payment_status,40);
