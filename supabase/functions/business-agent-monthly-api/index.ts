@@ -19,12 +19,13 @@ async function razorpay(path:string,init:RequestInit={}){if(!RK||!RS)throw Error
 async function hmac(message:string){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(RS),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return [...new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(message)))].map(x=>x.toString(16).padStart(2,"0")).join("")}
 function same(a:string,b:string){if(a.length!==b.length)return false;let v=0;for(let i=0;i<a.length;i++)v|=a.charCodeAt(i)^b.charCodeAt(i);return v===0}
 async function entitlement(uid:string){
- const [mon,legacy]=await Promise.all([
+ const [mon,legacy,closed]=await Promise.all([
   db("business_agent_monthly_accounts?user_id=eq."+encodeURIComponent(uid)+"&select=paid_through,requires_new_shop&limit=1"),
-  db("business_agent_licenses?user_id=eq."+encodeURIComponent(uid)+"&status=eq.active&select=id&limit=1")
+  db("business_agent_licenses?user_id=eq."+encodeURIComponent(uid)+"&status=eq.active&select=id&limit=1"),
+  db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(uid)+"&select=closed_at,slug,purge_status&limit=1")
  ]);
  const until=mon?.[0]?.paid_through||null;
- return {active:!!legacy?.length||!!(until&&new Date(until).getTime()>Date.now()),paid_through:until,legacy:!!legacy?.length,requires_new_shop:!!mon?.[0]?.requires_new_shop}
+ return {active:!closed?.length&&(!!legacy?.length||!!(until&&new Date(until).getTime()>Date.now())),paid_through:until,legacy:!!legacy?.length,requires_new_shop:!!mon?.[0]?.requires_new_shop,closed:!!closed?.length,closure:closed?.[0]||null}
 }
 async function operations(){const rows=await db("business_agent_operations?id=eq.1&select=*&limit=1");if(!rows?.length)throw Error("Service settings unavailable");return rows[0]}
 async function pricing(){const rows=await db("business_agent_pricing?id=eq.1&select=monthly_amount_paise,reference_amount_paise,reference_kind,offer_label,offer_details,offer_ends_at,updated_at&limit=1");const x=rows?.[0];if(!x)throw Error("Pricing configuration missing");const isOffer=!!x.offer_label&&(!x.offer_ends_at||Date.parse(x.offer_ends_at)>Date.now());return {...x,offer_active:isOffer,monthly_amount_paise:Number(x.monthly_amount_paise),reference_amount_paise:Number(x.reference_amount_paise)}}
@@ -141,6 +142,16 @@ Deno.serve(async req=>{
    const reqs=await db("business_agent_cleanup_requests?user_id=eq."+encodeURIComponent(u.id)+"&select=requested_at,execute_after,status,completed_at&limit=1");
    return respond({cleanup:reqs?.[0]||null});
   }
+  if(action==="shop_close_status"){const rows=await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(u.id)+"&select=slug,closed_at,purge_status&limit=1");return respond({closure:rows?.[0]||null});}
+  if(action==="shop_close"){
+   if(data.confirm_phrase!=="PERMANENTLY CLOSE MY SHOP")return err("Type the exact confirmation phrase.",400);
+   const shops=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,slug&limit=1");
+   if(!shops?.length)return err("No shop found for this account",404);
+   const exact=String(data.confirm_slug||"").trim();
+   if(exact!==shops[0].slug)return err("Shop URL confirmation does not match your website.",400);
+   const result=await db("rpc/business_agent_close_shop",{method:"POST",body:JSON.stringify({p_user_id:u.id,p_slug:exact,p_actor:"owner"})});
+   return respond({ok:true,shop_slug:exact,closed:true,purge_pending:true,message:"Your public website has been closed and the hosted catalog removed immediately. Photo files and old customer-order records require a separate permanent purge. Payment receipts are retained where required."});
+  }
   if(action==="cleanup_request"){
    const ent=await entitlement(u.id),ops=await operations();
    if(ent.legacy)return err("Earlier lifetime-license customer data cannot enter monthly cleanup",403);
@@ -161,13 +172,14 @@ Deno.serve(async req=>{
    await patch("business_agent_cleanup_requests?user_id=eq."+encodeURIComponent(u.id)+"&status=eq.pending",{status:"cancelled",updated_at:new Date().toISOString()});
    return respond({ok:true,message:"Cleanup request cancelled. Your catalog has not been removed."});
   }
-  if(action==="slug_check"){const value=slug(data.slug),model=clean(data.model||"general",32);if(!/^[a-z0-9-]{3,70}$/.test(value))return err("Use 3–70 lowercase letters, numbers or hyphens",400);const result=await availableSlugs(value,u.id,model);return respond({slug:value,...result,notice:result.available?"This shop link is available.":"This URL is already used. Choose a suggested alternative."})}
+  if(action==="slug_check"){const closed=await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(u.id)+"&select=user_id&limit=1");if(closed?.length)return err("This shop was permanently closed. Its original URL cannot be reactivated.",410);const value=slug(data.slug),model=clean(data.model||"general",32);if(!/^[a-z0-9-]{3,70}$/.test(value))return err("Use 3–70 lowercase letters, numbers or hyphens",400);const result=await availableSlugs(value,u.id,model);return respond({slug:value,...result,notice:result.available?"This shop link is available.":"This URL is already used. Choose a suggested alternative."})}
   if(action==="me"){
    const ent=await entitlement(u.id);
    const shops=await db("business_agent_shops?user_id=eq."+encodeURIComponent(u.id)+"&select=id,slug,published,shop_data&limit=1");
-   const price=await pricing(),ops=await operations();const cutoff=ent.paid_through&&Date.parse(ent.paid_through)>0?new Date(Date.parse(ent.paid_through)+Number(ops.retention_days)*86400000).toISOString():null;return respond({licensed:ent.active,paid_through:ent.paid_through,legacy:ent.legacy,requires_new_shop:ent.requires_new_shop,retention_deadline:cutoff,retention_days:ops.retention_days,operations:{new_enrollment_enabled:ops.new_enrollment_enabled,renewal_enabled:ops.renewal_enabled,public_orders_enabled:ops.public_orders_enabled,maintenance_message:ops.maintenance_message},sales_enabled:Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")==="true",shop:shops?.[0]||null,user_email:u.email||null,price_paise:price.monthly_amount_paise,pricing:price,renewal_mode:"manual_prepaid"});
+   const price=await pricing(),ops=await operations();const cutoff=ent.paid_through&&Date.parse(ent.paid_through)>0?new Date(Date.parse(ent.paid_through)+Number(ops.retention_days)*86400000).toISOString():null;return respond({licensed:ent.active,paid_through:ent.paid_through,legacy:ent.legacy,shop_closed:ent.closed,closure:ent.closure,requires_new_shop:ent.requires_new_shop,retention_deadline:cutoff,retention_days:ops.retention_days,operations:{new_enrollment_enabled:ops.new_enrollment_enabled,renewal_enabled:ops.renewal_enabled,public_orders_enabled:ops.public_orders_enabled,maintenance_message:ops.maintenance_message},sales_enabled:Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")==="true",shop:shops?.[0]||null,user_email:u.email||null,price_paise:price.monthly_amount_paise,pricing:price,renewal_mode:"manual_prepaid"});
   }
   if(action==="checkout"){
+   const closed=await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(u.id)+"&select=user_id&limit=1");if(closed?.length)return err("This shop was permanently closed. No additional hosting payment can be taken for this shop.",410);
    const ops=await operations();const past=await bought(u.id);const priorCustomer=past.some(p=>p.status==="captured");if(!priorCustomer&&!ops.new_enrollment_enabled)return err("New shop registrations are temporarily paused. Existing paid shops can continue.",503);if(priorCustomer&&!ops.renewal_enabled)return err("Monthly renewals are temporarily paused. Already-paid shops continue until expiry.",503);
    if(Deno.env.get("BUSINESS_AGENT_MONTHLY_SALES_ENABLED")!=="true")return err("Monthly checkout is being tested. No payment is being taken.",503);
    if(!RK||!RS)return err("Checkout configuration unavailable",503);
@@ -192,7 +204,7 @@ Deno.serve(async req=>{
    const ent=await recover(u.id);return respond({licensed:ent.active,paid_through:ent.paid_through});
   }
   if(action==="save"){
-   const ent=await entitlement(u.id);if(!ent.active)return err("Renew your monthly plan to publish changes",403);
+   const ent=await entitlement(u.id);if(ent.closed)return err("This shop is permanently closed. Its original URL cannot be restored.",410);if(!ent.active)return err("Renew your monthly plan to publish changes",403);
    if(ent.requires_new_shop&&data.restart_acknowledged!==true)return err("Your retention grace period ended. Back up your old catalog and confirm starting a fresh shop before publishing.",409);
    const shop=normalizeShop(data.shop,u.id);
    const s=slug(data.slug||shop.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""));
