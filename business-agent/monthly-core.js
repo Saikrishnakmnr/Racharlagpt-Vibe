@@ -121,7 +121,7 @@ function authHandlers(){
  $("resetPasswordBtn").onclick=async()=>{
   if(!client)return notice("Password recovery is unavailable");
   const email=$("email").value.trim();
-  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return notice("Enter your account email in the Email field, then choose Forgot password.");
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return notice("Enter your account email in the Email field, then choose Forgot password.");
   const btn=$("resetPasswordBtn");btn.disabled=true;
   try{
    const r=await client.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname+"?password_recovery=1"});
