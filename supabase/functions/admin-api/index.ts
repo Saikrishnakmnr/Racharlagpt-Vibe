@@ -7,17 +7,57 @@ function esc(s:string){return String(s||"").replace(/[<>&]/g,c=>({"<":"&lt;",">"
 Deno.serve(async req=>{if(req.method==="OPTIONS")return new Response("ok",{headers:cors});try{
  if(!ADMIN||req.headers.get("x-admin-token")!==ADMIN)return json({error:"Admin authorization required"},401);
  const b=await req.json(),action=String(b.action||"summary");
+ if(action==="business_agent_close"||action==="business_agent_purge"){
+   // These are platform-administrator actions, after the server's ADMIN_TOKEN check.
+   const uid=String(b.user_id||""),expectedSlug=String(b.slug||"").trim();
+   if(!/^[0-9a-f-]{36}$/i.test(uid)||!/^[a-z0-9-]{3,70}$/.test(expectedSlug))return json({error:"Select a valid shop from the admin list."},400);
+   const rows=await db("business_agent_shops?user_id=eq."+encodeURIComponent(uid)+"&select=id,user_id,slug,published&limit=1");
+   if(!rows?.length||rows[0].slug!==expectedSlug)return json({error:"Shop no longer matches the selected owner or URL."},409);
+   if(action==="business_agent_close"){
+     if(b.confirm_phrase!=="PERMANENTLY CLOSE SHOP")return json({error:"Exact administrator confirmation required."},400);
+     const result=await db("rpc/business_agent_close_shop",{method:"POST",body:JSON.stringify({p_user_id:uid,p_slug:expectedSlug,p_actor:"administrator"})});
+     return json({ok:true,shop_closed:true,shop_slug:expectedSlug,purge_pending:true,refund_issued:false});
+   }
+   if(b.confirm_phrase!=="ERASE SHOP CUSTOMER DATA")return json({error:"Exact erase confirmation required."},400);
+   const closures=await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(uid)+"&shop_id=eq."+encodeURIComponent(rows[0].id)+"&slug=eq."+encodeURIComponent(expectedSlug)+"&select=user_id,shop_id,purge_status&limit=1");
+   if(!closures?.length)return json({error:"Shop must be closed before erasing customer data."},409);
+   if(closures[0].purge_status==="completed")return json({ok:true,purge_status:"completed",already_completed:true});
+   try{
+     const bucket="business-agent-images";
+     let removed=0;
+     for(let batch=0;batch<50;batch++){
+       const listResponse=await fetch(U+"/storage/v1/object/list/"+bucket,{method:"POST",headers:{apikey:S,...(S.startsWith("sb_")?{}:{Authorization:"Bearer "+S}),"Content-Type":"application/json"},body:JSON.stringify({prefix:uid+"/",limit:100,offset:0})});
+       if(!listResponse.ok)throw Error("Could not list the owner's photos: HTTP "+listResponse.status);
+       const listed=await listResponse.json();
+       if(!Array.isArray(listed))throw Error("Unexpected photo listing");
+       const paths=listed.filter((item:any)=>typeof item.name==="string"&&item.name!=="."&&item.name!==".."&&item.name.length<400).map((item:any)=>uid+"/"+item.name);
+       if(paths.length===0)break;
+       const deletion=await fetch(U+"/storage/v1/object/"+bucket,{method:"DELETE",headers:{apikey:S,...(S.startsWith("sb_")?{}:{Authorization:"Bearer "+S}),"Content-Type":"application/json"},body:JSON.stringify({prefixes:paths})});
+       if(!deletion.ok)throw Error("Could not delete owner photos: HTTP "+deletion.status);
+       removed+=paths.length;
+       if(batch===49)throw Error("Too many image batches. Retry the purge.");
+     }
+     // Order event history cascades with the customer's orders.
+     await db("business_agent_customer_orders?shop_id=eq."+encodeURIComponent(rows[0].id),{method:"DELETE",headers:{Prefer:"return=minimal"}});
+     await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(uid),{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({purge_status:"completed",purged_at:new Date().toISOString(),photos_removed:removed,last_error:null})});
+     return json({ok:true,purge_status:"completed",photos_removed:removed,customer_orders_erased:true,hosted_catalog_erased:true,original_slug_reserved:true,payment_receipts_retained:true,auth_account_retained:true});
+   }catch(e){
+     await db("business_agent_shop_closures?user_id=eq."+encodeURIComponent(uid),{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({purge_status:"failed",last_error:String(e).slice(0,190)})}).catch(()=>{});
+     return json({error:"Shop closed, but erasure needs an administrator retry: "+String(e).slice(0,120)},503);
+   }
+ }
  if(action==="business_agent_summary"){
-   const [shops,purchases,accounts,customerOrders]=await Promise.all([
+   const [shops,purchases,accounts,customerOrders,closures]=await Promise.all([
      db("business_agent_shops?select=id,user_id,slug,shop_data,published,created_at&order=created_at.desc&limit=1000"),
      db("business_agent_monthly_purchases?select=id,user_id,amount_paise,currency,status,captured_at,created_at&order=created_at.desc&limit=1000"),
      db("business_agent_monthly_accounts?select=user_id,paid_through&limit=1000"),
-     db("business_agent_customer_orders?select=id,shop_id,order_number,customer_name,items,amount_paise,status,payment_status,created_at&order=created_at.desc&limit=1000")
+     db("business_agent_customer_orders?select=id,shop_id,order_number,customer_name,items,amount_paise,status,payment_status,created_at&order=created_at.desc&limit=1000"),
+     db("business_agent_shop_closures?select=user_id,shop_id,slug,closed_at,purge_status,purged_at&limit=1000")
    ]);
    const paid=(purchases||[]).filter((p:any)=>p.status==="captured");
    const active=(accounts||[]).filter((a:any)=>a.paid_through&&Date.parse(a.paid_through)>Date.now());
    const enriched=(shops||[]).map((shop:any)=>({
-     id:shop.id,slug:shop.slug,shop_name:String(shop.shop_data?.name||shop.slug||"Unnamed shop").slice(0,140),published:shop.published,created_at:shop.created_at,
+     id:shop.id,user_id:shop.user_id,slug:shop.slug,shop_name:String(shop.shop_data?.name||shop.slug||"Unnamed shop").slice(0,140),published:shop.published,created_at:shop.created_at,closure:(closures||[]).find((c:any)=>c.user_id===shop.user_id)||null,
      paid_through:(accounts||[]).find((a:any)=>a.user_id===shop.user_id)?.paid_through||null,
      captured_purchases:paid.filter((p:any)=>p.user_id===shop.user_id).length,
      customer_order_count:(customerOrders||[]).filter((c:any)=>c.shop_id===shop.id).length
