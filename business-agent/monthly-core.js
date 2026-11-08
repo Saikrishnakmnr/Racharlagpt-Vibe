@@ -67,7 +67,7 @@ async function refreshAccount(){
  state.session=(await client.auth.getSession()).data.session;const signed=!!state.session?.user;
  for(const id of ["loginFields","loginBtn","signupBtn","googleBtn"])$(id).hidden=signed;
  $("logoutBtn").hidden=!signed;
- if(!signed){state.ownerId=null;state.entitled=false;state.legacy=false;state.shopClosed=false;state.paidThrough=null;state.salesEnabled=false;state.restartRequired=false;state.retentionDeadline=null;state.operations=null;state.saved=null;state.shop=read(guestKey)||blank();window.RBA?.renderOwner?.();displayPlan();if($("cleanupControls"))$("cleanupControls").hidden=true;return}
+ if(!signed){state.ownerId=null;state.entitled=false;state.legacy=false;state.shopClosed=false;state.paidThrough=null;state.salesEnabled=false;state.restartRequired=false;state.retentionDeadline=null;state.operations=null;state.saved=null;state.shop=read(guestKey)||blank();window.RBA?.renderOwner?.();displayPlan();if($("cleanupControls"))$("cleanupControls").hidden=true;if($("shopPauseControls"))$("shopPauseControls").hidden=true;return}
  const uid=state.session.user.id;
  if(state.ownerId!==uid){
   if(state.ownerId)persist();
@@ -83,7 +83,7 @@ async function refreshAccount(){
   state.entitled=!!r.licensed;state.legacy=!!r.legacy;state.shopClosed=!!r.shop_closed;state.closure=r.closure||null;state.paidThrough=r.paid_through;state.salesEnabled=!!r.sales_enabled;state.restartRequired=!!r.requires_new_shop;state.retentionDeadline=r.retention_deadline||null;state.retentionDays=Number(r.retention_days)||60;state.operations=r.operations||null;if(r.pricing)state.pricing=r.pricing;displayPricing();state.saved=r.shop||null;
   if(state.shopClosed){state.shop=blank();try{localStorage.removeItem(userKey(uid))}catch(e){}}
   if(!state.shopClosed&&state.saved?.shop_data){const local=read(userKey(uid));if(!local?.name||!local?.products?.length){state.shop={...blank(),...state.saved.shop_data};persist()}}
-  window.RBA?.renderOwner?.();displayPlan();window.RBA?.refreshCleanup?.();window.RBA?.refreshClosure?.();notice(state.shopClosed?"This shop was permanently closed. The original URL cannot be reactivated.":state.entitled?"Your online shop access is active. Edit and republish for current prices.":"Free shop preview available. Your data stays on this account for renewal.",state.entitled);
+  window.RBA?.renderOwner?.();displayPlan();window.RBA?.refreshCleanup?.();window.RBA?.refreshClosure?.();window.RBA?.refreshPauseControls?.();notice(state.shopClosed?"This shop was permanently closed. The original URL cannot be reactivated.":state.entitled?"Your online shop access is active. Edit and republish for current prices.":"Free shop preview available. Your data stays on this account for renewal.",state.entitled);
  }catch(e){state.entitled=false;state.salesEnabled=false;displayPlan();notice("Cannot check plan: "+e.message)}
 }
 async function auth(kind){
